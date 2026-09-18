@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Inicio - TicketFlow{% endblock %}
+
+{% block content %}
+<div class="p-5 bg-body-tertiary rounded-3">
+    <h1 class="display-6">TicketFlow</h1>
+    <p class="lead">Sistema de gestión de tickets internos.</p>
+    <p>Django está funcionando correctamente sobre PostgreSQL.</p>
+    {% if not user.is_authenticated %}
+        <a class="btn btn-primary" href="{% url 'users:login' %}">Iniciar sesión</a>
+    {% endif %}
+</div>
+{% endblock %}
