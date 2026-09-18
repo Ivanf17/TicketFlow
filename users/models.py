@@ -1,4 +1,5 @@
 from django.contrib.auth.models import AbstractUser
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
@@ -29,6 +30,15 @@ class User(AbstractUser):
         blank=True,
         related_name="users",
     )
+
+    ROLES_REQUIRING_AREA = (Role.EMPLOYEE, Role.AREA_MANAGER)
+
+    def clean(self):
+        super().clean()
+        if self.role in self.ROLES_REQUIRING_AREA and self.area_id is None:
+            raise ValidationError(
+                {"area": "This role requires an area to be set."}
+            )
 
     def __str__(self):
         return self.username
