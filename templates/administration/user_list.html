@@ -3,7 +3,10 @@
 {% block title %}Usuarios - Administración{% endblock %}
 
 {% block content %}
-<h1 class="h3 mb-3">Usuarios</h1>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Usuarios</h1>
+    <a class="btn btn-primary btn-sm" href="{% url 'administration:user_create' %}">Crear usuario</a>
+</div>
 
 {% if users %}
 <table class="table table-sm">

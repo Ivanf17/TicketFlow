@@ -402,3 +402,290 @@ class UserAdministrationTests(TestCase):
         )
         self.assertEqual(response.status_code, 403)
         self.assertTrue(User.objects.filter(pk=self.employee.pk).exists())
+
+
+class UserCreationTests(TestCase):
+    """Block 8.1: creating users from /administration/users/new/."""
+
+    def setUp(self):
+        self.area = Area.objects.create(name="TI")
+        self.employee = User.objects.create_user(
+            username="empleado", password="pass12345",
+            role=User.Role.EMPLOYEE, area=self.area,
+        )
+        self.manager = User.objects.create_user(
+            username="jefe", password="pass12345",
+            role=User.Role.AREA_MANAGER, area=self.area,
+        )
+        self.admin = User.objects.create_user(
+            username="admin1", password="pass12345", role=User.Role.ADMIN,
+        )
+        self.management = User.objects.create_user(
+            username="direccion", password="pass12345", role=User.Role.MANAGEMENT,
+        )
+
+    def valid_payload(self, **overrides):
+        payload = {
+            "username": "nuevo_usuario",
+            "email": "nuevo@example.com",
+            "role": User.Role.EMPLOYEE,
+            "area": self.area.pk,
+            "is_active": "on",
+            "password1": "S0lidP4ssw0rd!",
+            "password2": "S0lidP4ssw0rd!",
+        }
+        payload.update(overrides)
+        return payload
+
+    # --- Access -------------------------------------------------------
+
+    def test_login_required(self):
+        response = self.client.get(reverse("administration:user_create"))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/accounts/login/", response.url)
+
+    def test_admin_can_access_user_create(self):
+        self.client.login(username="admin1", password="pass12345")
+        response = self.client.get(reverse("administration:user_create"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_employee_cannot_access_user_create(self):
+        self.client.login(username="empleado", password="pass12345")
+        response = self.client.get(reverse("administration:user_create"))
+        self.assertEqual(response.status_code, 403)
+
+    def test_area_manager_cannot_access_user_create(self):
+        self.client.login(username="jefe", password="pass12345")
+        response = self.client.get(reverse("administration:user_create"))
+        self.assertEqual(response.status_code, 403)
+
+    def test_management_cannot_access_user_create(self):
+        self.client.login(username="direccion", password="pass12345")
+        response = self.client.get(reverse("administration:user_create"))
+        self.assertEqual(response.status_code, 403)
+
+    def test_non_admin_cannot_create_user_via_post(self):
+        for username in ("empleado", "jefe", "direccion"):
+            self.client.login(username=username, password="pass12345")
+            response = self.client.post(
+                reverse("administration:user_create"),
+                self.valid_payload(username="colado"),
+            )
+            self.assertEqual(response.status_code, 403, username)
+            self.assertFalse(User.objects.filter(username="colado").exists())
+            self.client.logout()
+
+    # --- Valid creation -------------------------------------------------
+
+    def test_admin_can_create_employee_with_area(self):
+        self.client.login(username="admin1", password="pass12345")
+        response = self.client.post(
+            reverse("administration:user_create"),
+            self.valid_payload(
+                username="nuevo_empleado", role=User.Role.EMPLOYEE, area=self.area.pk
+            ),
+        )
+        self.assertEqual(response.status_code, 302)
+        created = User.objects.get(username="nuevo_empleado")
+        self.assertEqual(created.role, User.Role.EMPLOYEE)
+        self.assertEqual(created.area, self.area)
+        self.assertTrue(created.is_active)
+
+    def test_admin_can_create_area_manager_with_area(self):
+        self.client.login(username="admin1", password="pass12345")
+        response = self.client.post(
+            reverse("administration:user_create"),
+            self.valid_payload(
+                username="nuevo_jefe", role=User.Role.AREA_MANAGER, area=self.area.pk
+            ),
+        )
+        self.assertEqual(response.status_code, 302)
+        created = User.objects.get(username="nuevo_jefe")
+        self.assertEqual(created.role, User.Role.AREA_MANAGER)
+        self.assertEqual(created.area, self.area)
+
+    def test_admin_can_create_admin_without_area(self):
+        self.client.login(username="admin1", password="pass12345")
+        response = self.client.post(
+            reverse("administration:user_create"),
+            self.valid_payload(username="nuevo_admin", role=User.Role.ADMIN, area=""),
+        )
+        self.assertEqual(response.status_code, 302)
+        created = User.objects.get(username="nuevo_admin")
+        self.assertEqual(created.role, User.Role.ADMIN)
+        self.assertIsNone(created.area)
+
+    def test_admin_can_create_management_without_area(self):
+        self.client.login(username="admin1", password="pass12345")
+        response = self.client.post(
+            reverse("administration:user_create"),
+            self.valid_payload(
+                username="nueva_direccion", role=User.Role.MANAGEMENT, area=""
+            ),
+        )
+        self.assertEqual(response.status_code, 302)
+        created = User.objects.get(username="nueva_direccion")
+        self.assertEqual(created.role, User.Role.MANAGEMENT)
+        self.assertIsNone(created.area)
+
+    def test_created_user_appears_in_user_list(self):
+        self.client.login(username="admin1", password="pass12345")
+        self.client.post(
+            reverse("administration:user_create"),
+            self.valid_payload(username="visible_en_lista"),
+        )
+        response = self.client.get(reverse("administration:user_list"))
+        self.assertContains(response, "visible_en_lista")
+
+    # --- Validation -------------------------------------------------------
+
+    def test_employee_without_area_is_rejected(self):
+        self.client.login(username="admin1", password="pass12345")
+        response = self.client.post(
+            reverse("administration:user_create"),
+            self.valid_payload(
+                username="empleado_sin_area", role=User.Role.EMPLOYEE, area=""
+            ),
+        )
+        self.assertEqual(response.status_code, 200)  # form re-rendered, invalid
+        self.assertFalse(User.objects.filter(username="empleado_sin_area").exists())
+
+    def test_area_manager_without_area_is_rejected(self):
+        self.client.login(username="admin1", password="pass12345")
+        response = self.client.post(
+            reverse("administration:user_create"),
+            self.valid_payload(
+                username="jefe_sin_area", role=User.Role.AREA_MANAGER, area=""
+            ),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(User.objects.filter(username="jefe_sin_area").exists())
+
+    def test_duplicate_username_is_rejected(self):
+        self.client.login(username="admin1", password="pass12345")
+        response = self.client.post(
+            reverse("administration:user_create"),
+            self.valid_payload(username="empleado"),  # already exists (setUp)
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(User.objects.filter(username="empleado").count(), 1)
+
+    def test_mismatched_passwords_are_rejected(self):
+        self.client.login(username="admin1", password="pass12345")
+        response = self.client.post(
+            reverse("administration:user_create"),
+            self.valid_payload(
+                username="password_mismatch",
+                password1="S0lidP4ssw0rd!",
+                password2="OtraContrasena!9",
+            ),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(User.objects.filter(username="password_mismatch").exists())
+
+    def test_missing_required_fields_are_rejected(self):
+        self.client.login(username="admin1", password="pass12345")
+        response = self.client.post(
+            reverse("administration:user_create"),
+            {"username": "", "role": "", "password1": "", "password2": ""},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(User.objects.count(), 4)  # unchanged from setUp
+
+    # --- Password security ---------------------------------------------
+
+    def test_password_is_hashed_not_stored_in_plain_text(self):
+        self.client.login(username="admin1", password="pass12345")
+        self.client.post(
+            reverse("administration:user_create"),
+            self.valid_payload(
+                username="password_check",
+                password1="S0lidP4ssw0rd!",
+                password2="S0lidP4ssw0rd!",
+            ),
+        )
+        created = User.objects.get(username="password_check")
+        self.assertNotEqual(created.password, "S0lidP4ssw0rd!")
+        self.assertTrue(created.password.startswith("pbkdf2_"))
+        self.assertTrue(created.check_password("S0lidP4ssw0rd!"))
+        self.assertFalse(created.check_password("wrong-password"))
+
+    # --- is_staff / is_superuser -----------------------------------------
+
+    def test_created_users_never_get_staff_or_superuser_regardless_of_role(self):
+        self.client.login(username="admin1", password="pass12345")
+        roles_and_areas = [
+            (User.Role.EMPLOYEE, self.area.pk),
+            (User.Role.AREA_MANAGER, self.area.pk),
+            (User.Role.ADMIN, ""),
+            (User.Role.MANAGEMENT, ""),
+        ]
+        for role, area in roles_and_areas:
+            username = f"staff_check_{role}"
+            self.client.post(
+                reverse("administration:user_create"),
+                self.valid_payload(username=username, role=role, area=area),
+            )
+            created = User.objects.get(username=username)
+            self.assertFalse(created.is_staff, role)
+            self.assertFalse(created.is_superuser, role)
+
+
+class UserEditRegressionTests(TestCase):
+    """Confirms editing users still works exactly as before Block 8.1."""
+
+    def setUp(self):
+        self.area = Area.objects.create(name="TI")
+        self.other_area = Area.objects.create(name="RRHH")
+        self.employee = User.objects.create_user(
+            username="empleado", password="pass12345",
+            role=User.Role.EMPLOYEE, area=self.area,
+        )
+        self.admin = User.objects.create_user(
+            username="admin1", password="pass12345", role=User.Role.ADMIN,
+        )
+
+    def test_edit_still_changes_role_and_area(self):
+        self.client.login(username="admin1", password="pass12345")
+        response = self.client.post(
+            reverse("administration:user_edit", args=[self.employee.pk]),
+            {
+                "role": User.Role.AREA_MANAGER,
+                "area": self.other_area.pk,
+                "is_active": "on",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.employee.refresh_from_db()
+        self.assertEqual(self.employee.role, User.Role.AREA_MANAGER)
+        self.assertEqual(self.employee.area, self.other_area)
+
+    def test_edit_still_toggles_active_status(self):
+        self.client.login(username="admin1", password="pass12345")
+        response = self.client.post(
+            reverse("administration:user_edit", args=[self.employee.pk]),
+            {"role": User.Role.EMPLOYEE, "area": self.area.pk},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.employee.refresh_from_db()
+        self.assertFalse(self.employee.is_active)
+
+    def test_edit_still_enforces_area_required_for_employee(self):
+        self.client.login(username="admin1", password="pass12345")
+        response = self.client.post(
+            reverse("administration:user_edit", args=[self.employee.pk]),
+            {"role": User.Role.EMPLOYEE, "area": "", "is_active": "on"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.employee.refresh_from_db()
+        self.assertEqual(self.employee.area, self.area)  # unchanged
+
+    def test_edit_does_not_touch_password(self):
+        original_password_hash = self.employee.password
+        self.client.login(username="admin1", password="pass12345")
+        self.client.post(
+            reverse("administration:user_edit", args=[self.employee.pk]),
+            {"role": User.Role.EMPLOYEE, "area": self.area.pk, "is_active": "on"},
+        )
+        self.employee.refresh_from_db()
+        self.assertEqual(self.employee.password, original_password_hash)

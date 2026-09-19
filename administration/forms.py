@@ -1,4 +1,5 @@
 from django import forms
+from django.contrib.auth.forms import UserCreationForm as DjangoUserCreationForm
 
 from users.models import User
 
@@ -43,6 +44,40 @@ class UserAdminForm(forms.ModelForm):
     class Meta:
         model = User
         fields = ["role", "area", "is_active"]
+        widgets = {
+            "role": forms.Select(attrs={"class": "form-select"}),
+            "area": forms.Select(attrs={"class": "form-select"}),
+        }
+
+
+class UserCreateForm(DjangoUserCreationForm):
+    """Reuses Django's own UserCreationForm (password1/password2,
+    strength validation via AUTH_PASSWORD_VALIDATORS, hashing through
+    ``set_password()`` on save, case-insensitive duplicate-username
+    rejection) instead of reimplementing any of that.
+
+    ``django.contrib.auth.forms.BaseUserCreationForm.Meta.model`` points
+    at Django's own built-in ``auth.User`` (it is imported directly in
+    that module), not at this project's swapped ``AUTH_USER_MODEL``.
+    Per Django's documented pattern for custom user models, ``model``
+    must be overridden explicitly here; only inheriting ``Meta`` is not
+    enough.
+
+    Being a ModelForm, saving it runs full_clean() (and therefore
+    User.clean()), so the existing employee/area_manager-requires-area
+    rule is enforced here too, exactly as it already is for
+    UserAdminForm -- no validation is duplicated.
+
+    Deliberately does not expose is_staff/is_superuser/permissions: new
+    users created here get the model's own defaults for those fields
+    (False/False), for every role, exactly like User.objects
+    .create_user() already does. See administration/views.py for the
+    documented consequence.
+    """
+
+    class Meta(DjangoUserCreationForm.Meta):
+        model = User
+        fields = ("username", "email", "role", "area", "is_active")
         widgets = {
             "role": forms.Select(attrs={"class": "form-select"}),
             "area": forms.Select(attrs={"class": "form-select"}),

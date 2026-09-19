@@ -7,7 +7,7 @@ from django.views.decorators.http import require_POST
 
 from users.models import User
 
-from .forms import AreaForm, CategoryForm, UserAdminForm
+from .forms import AreaForm, CategoryForm, UserAdminForm, UserCreateForm
 from .models import Area, Category
 from .permissions import can_access_administration
 
@@ -166,6 +166,25 @@ def user_list(request):
     _require_admin(request)
     users = User.objects.select_related("area").order_by("username")
     return render(request, "administration/user_list.html", {"users": users})
+
+
+@login_required
+def user_create(request):
+    _require_admin(request)
+    # New users created here always get is_staff=False, is_superuser=False
+    # (the model's own defaults), for every role, including admin: this
+    # form never exposes those fields, exactly like User.objects
+    # .create_user() already behaves. Django Admin access remains a
+    # separate, staff-gated concern, untouched by this block.
+    if request.method == "POST":
+        form = UserCreateForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Usuario creado.")
+            return redirect("administration:user_list")
+    else:
+        form = UserCreateForm()
+    return render(request, "administration/user_create.html", {"form": form})
 
 
 @login_required
