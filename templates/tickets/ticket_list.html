@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Tickets - TicketFlow{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Tickets</h1>
+    <a class="btn btn-primary btn-sm" href="{% url 'tickets:create' %}">Nuevo ticket</a>
+</div>
+{% if tickets %}
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>N&deg;</th>
+            <th>T&iacute;tulo</th>
+            <th>Categor&iacute;a</th>
+            <th>&Aacute;rea</th>
+            <th>Estado</th>
+            <th>Creado por</th>
+            <th>Asignado a</th>
+            <th>Creado</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for ticket in tickets %}
+        <tr>
+            <td><a href="{% url 'tickets:detail' ticket.pk %}">{{ ticket.ticket_number }}</a></td>
+            <td>{{ ticket.title }}</td>
+            <td>{{ ticket.category.name }}</td>
+            <td>{{ ticket.area.name }}</td>
+            <td>{{ ticket.get_status_display }}</td>
+            <td>{{ ticket.created_by.username }}</td>
+            <td>{{ ticket.assigned_to.username|default:"—" }}</td>
+            <td>{{ ticket.created_at|date:"d/m/Y H:i" }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No hay tickets para mostrar.</p>
+{% endif %}
+{% endblock %}
