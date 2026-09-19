@@ -23,6 +23,11 @@
                         <li class="nav-item">
                             <a class="nav-link" href="{% url 'tickets:list' %}">Tickets</a>
                         </li>
+                        {% if user.role == user.Role.ADMIN or user.role == user.Role.MANAGEMENT or user.role == user.Role.AREA_MANAGER %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'reports:dashboard' %}">Dashboard</a>
+                        </li>
+                        {% endif %}
                         <li class="nav-item">
                             <a class="nav-link" href="{% url 'notifications:list' %}">Notificaciones ({{ unread_notifications_count }})</a>
                         </li>

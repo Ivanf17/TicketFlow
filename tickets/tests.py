@@ -282,6 +282,23 @@ class TicketPermissionTests(TestCase):
         response = self.client.get(reverse("tickets:detail", args=[self.ticket.pk]))
         self.assertEqual(response.status_code, 200)
 
+    def test_management_sees_no_tickets_in_ticket_list(self):
+        # Regression guard for Block 7: the dashboard grants Management a
+        # *global* view for reporting purposes only (reports.permissions
+        # .get_dashboard_tickets_queryset). tickets.permissions
+        # .get_visible_tickets, used by this view, must keep giving
+        # Management no ticket-lifecycle access at all, exactly as before
+        # the dashboard existed.
+        self.client.login(username="direccion1", password="pass12345")
+        response = self.client.get(reverse("tickets:list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["tickets"]), [])
+
+    def test_management_cannot_view_ticket_detail(self):
+        self.client.login(username="direccion1", password="pass12345")
+        response = self.client.get(reverse("tickets:detail", args=[self.ticket.pk]))
+        self.assertEqual(response.status_code, 404)
+
 
 class TicketAssignmentViewTests(TestCase):
     """Manual (re)assignment permissions, exercised through the view layer."""
