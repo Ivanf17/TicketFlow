@@ -490,3 +490,71 @@ class DashboardRecentTicketsTests(DashboardBaseTestCase):
         titles = [t.title for t in response.context["recent_tickets"]]
         # Higher id (created later) must come first despite the tie.
         self.assertEqual(titles, ["Empate 2", "Empate 1"])
+
+
+class DashboardManagementRecentTicketsScopeTests(DashboardBaseTestCase):
+    """Management's dashboard scope is management-level reporting, not
+    individual ticket content: the "recent tickets" widget (which would
+    otherwise link to a ticket detail page that tickets.permissions
+    .get_visible_tickets correctly denies management, i.e. a 404) must
+    be fully absent for this role, without weakening any other role's
+    view of it.
+    """
+
+    def setUp(self):
+        super().setUp()
+        make_ticket(self.category_ti, self.employee, "TI 1")
+        make_ticket(self.category_rrhh, self.employee_rrhh, "RRHH 1")
+
+    def test_management_can_access_dashboard(self):
+        self.client.login(username="direccion1", password="pass12345")
+        response = self.client.get(self.dashboard_url())
+        self.assertEqual(response.status_code, 200)
+
+    def test_management_receives_no_recent_tickets(self):
+        self.client.login(username="direccion1", password="pass12345")
+        response = self.client.get(self.dashboard_url())
+        self.assertFalse(response.context["show_recent_tickets"])
+        self.assertEqual(list(response.context["recent_tickets"]), [])
+
+    def test_management_does_not_see_recent_tickets_widget(self):
+        self.client.login(username="direccion1", password="pass12345")
+        response = self.client.get(self.dashboard_url())
+        self.assertNotContains(response, "Tickets recientes")
+        self.assertNotContains(response, "TI 1")
+        self.assertNotContains(response, "RRHH 1")
+
+    def test_management_still_sees_dashboard_metrics(self):
+        self.client.login(username="direccion1", password="pass12345")
+        response = self.client.get(self.dashboard_url())
+        self.assertEqual(response.context["total"], 2)
+        by_area = {row["category__area__name"]: row["count"] for row in response.context["by_area"]}
+        self.assertEqual(by_area["TI"], 1)
+        self.assertEqual(by_area["RRHH"], 1)
+        self.assertContains(response, "statusChart")
+        self.assertContains(response, "areaChart")
+
+    def test_admin_still_sees_recent_tickets(self):
+        self.client.login(username="admin1", password="pass12345")
+        response = self.client.get(self.dashboard_url())
+        self.assertTrue(response.context["show_recent_tickets"])
+        self.assertContains(response, "Tickets recientes")
+        self.assertContains(response, "TI 1")
+        self.assertContains(response, "RRHH 1")
+
+    def test_area_manager_still_sees_recent_tickets_scoped_to_own_area(self):
+        self.client.login(username="jefe_ti", password="pass12345")
+        response = self.client.get(self.dashboard_url())
+        self.assertTrue(response.context["show_recent_tickets"])
+        self.assertContains(response, "Tickets recientes")
+        self.assertContains(response, "TI 1")
+        self.assertNotContains(response, "RRHH 1")
+
+    def test_management_still_cannot_access_ticket_detail(self):
+        # Confirms the fix does not grant management any new access to
+        # tickets.views.ticket_detail; tickets/permissions.py was not
+        # touched by this change.
+        ticket = Ticket.objects.filter(category=self.category_ti).first()
+        self.client.login(username="direccion1", password="pass12345")
+        response = self.client.get(reverse("tickets:detail", args=[ticket.pk]))
+        self.assertEqual(response.status_code, 404)

@@ -124,9 +124,22 @@ def dashboard(request):
     # category/area/created_by/assigned_to for each row. Tie-broken by
     # id (in addition to created_at) so the order is fully deterministic
     # even when two tickets share the same timestamp.
-    recent_tickets = queryset.select_related(
-        "category", "category__area", "created_by", "assigned_to"
-    ).order_by("-created_at", "-id")[:RECENT_TICKETS_LIMIT]
+    #
+    # Management's dashboard scope is management-level reporting (global
+    # metrics, counts, average resolution time), not individual ticket
+    # content, and tickets.permissions.get_visible_tickets deliberately
+    # denies management access to ticket detail. Rather than linking to
+    # a detail page that would 404, the "recent tickets" widget is
+    # skipped for management entirely: the query is never built (using
+    # .none(), which never hits the database), not just hidden after
+    # the fact.
+    show_recent_tickets = request.user.role != User.Role.MANAGEMENT
+    if show_recent_tickets:
+        recent_tickets = queryset.select_related(
+            "category", "category__area", "created_by", "assigned_to"
+        ).order_by("-created_at", "-id")[:RECENT_TICKETS_LIMIT]
+    else:
+        recent_tickets = Ticket.objects.none()
 
     context = {
         "total": total,
@@ -135,6 +148,7 @@ def dashboard(request):
         "resolved": resolved,
         "average_resolution_label": average_resolution_label,
         "by_area": by_area,
+        "show_recent_tickets": show_recent_tickets,
         "recent_tickets": recent_tickets,
         "areas_for_filter": areas_for_filter,
         "selected_area": selected_area,

@@ -85,6 +85,7 @@
     </div>
 </div>
 
+{% if show_recent_tickets %}
 <div class="card">
     <div class="card-body">
         <h2 class="h6">Tickets recientes</h2>
@@ -118,6 +119,7 @@
         {% endif %}
     </div>
 </div>
+{% endif %}
 
 {{ status_labels|json_script:"status-labels" }}
 {{ status_values|json_script:"status-values" }}
