@@ -99,13 +99,18 @@ class Ticket(models.Model):
 class TicketHistory(models.Model):
     """Append-only log of ticket status changes.
 
-    This block only records the initial PENDING entry created together
-    with the ticket; the full transition workflow is implemented in
-    Block 5.
+    ``previous_status`` is ``None`` for the initial entry created together
+    with the ticket (there is no status before it); every later entry,
+    created by ``tickets.services.change_ticket_status``, fills in both
+    ``previous_status`` and ``status`` so a status change is always fully
+    self-describing.
     """
 
     ticket = models.ForeignKey(
         Ticket, on_delete=models.CASCADE, related_name="history"
+    )
+    previous_status = models.CharField(
+        max_length=20, choices=Ticket.Status.choices, null=True, blank=True
     )
     status = models.CharField(max_length=20, choices=Ticket.Status.choices)
     changed_by = models.ForeignKey(
@@ -121,4 +126,9 @@ class TicketHistory(models.Model):
         verbose_name_plural = "Ticket history"
 
     def __str__(self):
+        if self.previous_status:
+            return (
+                f"{self.ticket.ticket_number}: "
+                f"{self.get_previous_status_display()} -> {self.get_status_display()}"
+            )
         return f"{self.ticket.ticket_number} -> {self.get_status_display()}"

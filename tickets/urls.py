@@ -9,4 +9,5 @@ urlpatterns = [
     path("new/", views.ticket_create, name="create"),
     path("<int:pk>/", views.ticket_detail, name="detail"),
     path("<int:pk>/assign/", views.ticket_assign, name="assign"),
+    path("<int:pk>/status/", views.ticket_change_status, name="change_status"),
 ]

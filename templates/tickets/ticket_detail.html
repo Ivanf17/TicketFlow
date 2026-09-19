@@ -20,14 +20,30 @@
                 {% if ticket.assigned_to %}Reasignar{% else %}Asignar{% endif %} ticket
             </a>
         {% endif %}
+        {% if can_change_status %}
+            <form method="post" action="{% url 'tickets:change_status' ticket.pk %}" class="d-inline mt-3">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="{{ next_status }}">
+                <button type="submit" class="btn btn-outline-success btn-sm">
+                    Marcar como &quot;{{ next_status.label }}&quot;
+                </button>
+            </form>
+        {% elif no_status_actions %}
+            <p class="text-muted small mt-3 mb-0">No hay acciones disponibles.</p>
+        {% endif %}
     </div>
 </div>
 
-<h2 class="h5">Historial</h2>
+<h2 class="h5">Historial de estados</h2>
 <ul class="list-group mb-4">
     {% for entry in ticket.history.all %}
     <li class="list-group-item">
-        {{ entry.get_status_display }} &mdash; {{ entry.changed_by.username }} &mdash; {{ entry.created_at|date:"d/m/Y H:i" }}
+        {% if entry.previous_status %}
+            {{ entry.get_previous_status_display }} &rarr; {{ entry.get_status_display }}
+        {% else %}
+            Ticket creado &mdash; {{ entry.get_status_display }}
+        {% endif %}
+        &mdash; {{ entry.changed_by.username }} &mdash; {{ entry.created_at|date:"d/m/Y H:i" }}
     </li>
     {% endfor %}
 </ul>

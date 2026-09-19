@@ -4,6 +4,7 @@ from administration.models import Category
 from users.models import User
 
 from .models import Ticket
+from .services import get_next_status
 
 
 class TicketCreateForm(forms.ModelForm):
@@ -38,4 +39,18 @@ class TicketAssignForm(forms.Form):
             role=User.Role.AREA_MANAGER,
             area=ticket.category.area,
             is_active=True,
+        )
+
+
+class TicketStatusChangeForm(forms.Form):
+    status = forms.ChoiceField(choices=(), label="Nuevo estado")
+
+    def __init__(self, *args, ticket=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Only the single valid next status is ever offered, so a
+        # manipulated POST can't request an arbitrary status: anything
+        # else fails form validation before reaching the service layer.
+        next_status = get_next_status(ticket.status)
+        self.fields["status"].choices = (
+            [(next_status, next_status.label)] if next_status else []
         )

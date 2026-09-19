@@ -7,6 +7,7 @@ from administration.models import Area, Category
 from users.models import User
 
 from .models import Ticket, TicketHistory
+from .services import StatusTransitionError, change_ticket_status
 
 
 class TicketModelTests(TestCase):
@@ -132,6 +133,7 @@ class TicketModelTests(TestCase):
         history = TicketHistory.objects.filter(ticket=ticket)
         self.assertEqual(history.count(), 1)
         entry = history.first()
+        self.assertIsNone(entry.previous_status)
         self.assertEqual(entry.status, Ticket.Status.PENDING)
         self.assertEqual(entry.changed_by, self.creator)
 
@@ -379,3 +381,290 @@ class TicketAssignmentViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.ticket.refresh_from_db()
         self.assertEqual(self.ticket.assigned_to, self.manager_ti)
+
+
+class TicketStatusTransitionTests(TestCase):
+    """Service-level tests for the centralized status state machine."""
+
+    def setUp(self):
+        self.area = Area.objects.create(name="TI")
+        self.category = Category.objects.create(name="Hardware", area=self.area)
+        self.employee = User.objects.create_user(
+            username="empleado", password="pass12345",
+            role=User.Role.EMPLOYEE, area=self.area,
+        )
+        self.manager = User.objects.create_user(
+            username="jefe_ti", password="pass12345",
+            role=User.Role.AREA_MANAGER, area=self.area,
+        )
+        self.ticket = Ticket.objects.create_ticket(
+            title="Impresora rota", description="desc",
+            category=self.category, created_by=self.employee,
+        )
+
+    def test_ticket_starts_pending_with_single_initial_history_entry(self):
+        self.assertEqual(self.ticket.status, Ticket.Status.PENDING)
+        entries = list(TicketHistory.objects.filter(ticket=self.ticket))
+        self.assertEqual(len(entries), 1)
+        self.assertIsNone(entries[0].previous_status)
+        self.assertEqual(entries[0].status, Ticket.Status.PENDING)
+
+    def test_pending_to_in_process_succeeds(self):
+        change_ticket_status(
+            self.ticket, new_status=Ticket.Status.IN_PROCESS, changed_by=self.manager
+        )
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.status, Ticket.Status.IN_PROCESS)
+
+    def test_in_process_to_resolved_succeeds(self):
+        change_ticket_status(
+            self.ticket, new_status=Ticket.Status.IN_PROCESS, changed_by=self.manager
+        )
+        change_ticket_status(
+            self.ticket, new_status=Ticket.Status.RESOLVED, changed_by=self.manager
+        )
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.status, Ticket.Status.RESOLVED)
+
+    def test_pending_to_resolved_is_rejected(self):
+        with self.assertRaises(StatusTransitionError):
+            change_ticket_status(
+                self.ticket, new_status=Ticket.Status.RESOLVED, changed_by=self.manager
+            )
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.status, Ticket.Status.PENDING)
+        self.assertEqual(TicketHistory.objects.filter(ticket=self.ticket).count(), 1)
+
+    def test_in_process_to_pending_is_rejected(self):
+        change_ticket_status(
+            self.ticket, new_status=Ticket.Status.IN_PROCESS, changed_by=self.manager
+        )
+        with self.assertRaises(StatusTransitionError):
+            change_ticket_status(
+                self.ticket, new_status=Ticket.Status.PENDING, changed_by=self.manager
+            )
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.status, Ticket.Status.IN_PROCESS)
+
+    def test_resolved_to_in_process_is_rejected(self):
+        change_ticket_status(
+            self.ticket, new_status=Ticket.Status.IN_PROCESS, changed_by=self.manager
+        )
+        change_ticket_status(
+            self.ticket, new_status=Ticket.Status.RESOLVED, changed_by=self.manager
+        )
+        with self.assertRaises(StatusTransitionError):
+            change_ticket_status(
+                self.ticket, new_status=Ticket.Status.IN_PROCESS, changed_by=self.manager
+            )
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.status, Ticket.Status.RESOLVED)
+
+    def test_resolved_to_pending_is_rejected(self):
+        change_ticket_status(
+            self.ticket, new_status=Ticket.Status.IN_PROCESS, changed_by=self.manager
+        )
+        change_ticket_status(
+            self.ticket, new_status=Ticket.Status.RESOLVED, changed_by=self.manager
+        )
+        with self.assertRaises(StatusTransitionError):
+            change_ticket_status(
+                self.ticket, new_status=Ticket.Status.PENDING, changed_by=self.manager
+            )
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.status, Ticket.Status.RESOLVED)
+
+    def test_resolved_to_resolved_creates_no_extra_history(self):
+        change_ticket_status(
+            self.ticket, new_status=Ticket.Status.IN_PROCESS, changed_by=self.manager
+        )
+        change_ticket_status(
+            self.ticket, new_status=Ticket.Status.RESOLVED, changed_by=self.manager
+        )
+        count_before = TicketHistory.objects.filter(ticket=self.ticket).count()
+        with self.assertRaises(StatusTransitionError):
+            change_ticket_status(
+                self.ticket, new_status=Ticket.Status.RESOLVED, changed_by=self.manager
+            )
+        self.assertEqual(
+            TicketHistory.objects.filter(ticket=self.ticket).count(), count_before
+        )
+
+    def test_history_records_previous_and_new_status_user_and_order(self):
+        change_ticket_status(
+            self.ticket, new_status=Ticket.Status.IN_PROCESS, changed_by=self.manager
+        )
+        change_ticket_status(
+            self.ticket, new_status=Ticket.Status.RESOLVED, changed_by=self.manager
+        )
+        entries = list(
+            TicketHistory.objects.filter(ticket=self.ticket).order_by("created_at")
+        )
+        self.assertEqual(len(entries), 3)  # initial creation + 2 real transitions
+        self.assertIsNone(entries[0].previous_status)
+        self.assertEqual(entries[0].status, Ticket.Status.PENDING)
+        self.assertEqual(entries[1].previous_status, Ticket.Status.PENDING)
+        self.assertEqual(entries[1].status, Ticket.Status.IN_PROCESS)
+        self.assertEqual(entries[1].changed_by, self.manager)
+        self.assertEqual(entries[2].previous_status, Ticket.Status.IN_PROCESS)
+        self.assertEqual(entries[2].status, Ticket.Status.RESOLVED)
+        self.assertEqual(entries[2].changed_by, self.manager)
+        self.assertLessEqual(entries[0].created_at, entries[1].created_at)
+        self.assertLessEqual(entries[1].created_at, entries[2].created_at)
+
+
+class TicketStatusViewTests(TestCase):
+    """View-level permission and security tests for status changes."""
+
+    def setUp(self):
+        self.area_ti = Area.objects.create(name="TI")
+        self.area_rrhh = Area.objects.create(name="RRHH")
+        self.category = Category.objects.create(name="Hardware", area=self.area_ti)
+
+        self.employee = User.objects.create_user(
+            username="empleado1", password="pass12345",
+            role=User.Role.EMPLOYEE, area=self.area_ti,
+        )
+        self.manager_ti = User.objects.create_user(
+            username="jefe_ti", password="pass12345",
+            role=User.Role.AREA_MANAGER, area=self.area_ti,
+        )
+        self.manager_rrhh = User.objects.create_user(
+            username="jefe_rrhh", password="pass12345",
+            role=User.Role.AREA_MANAGER, area=self.area_rrhh,
+        )
+        self.admin_user = User.objects.create_user(
+            username="admin1", password="pass12345", role=User.Role.ADMIN,
+        )
+        self.management_user = User.objects.create_user(
+            username="direccion1", password="pass12345", role=User.Role.MANAGEMENT,
+        )
+
+        self.ticket = Ticket.objects.create_ticket(
+            title="Impresora no funciona", description="desc",
+            category=self.category, created_by=self.employee,
+        )
+
+    def change_status_url(self, ticket=None):
+        return reverse("tickets:change_status", args=[(ticket or self.ticket).pk])
+
+    def test_login_required_for_status_change(self):
+        response = self.client.post(
+            self.change_status_url(), {"status": Ticket.Status.IN_PROCESS}
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/accounts/login/", response.url)
+
+    def test_employee_cannot_change_status(self):
+        self.client.login(username="empleado1", password="pass12345")
+        response = self.client.post(
+            self.change_status_url(), {"status": Ticket.Status.IN_PROCESS}
+        )
+        self.assertEqual(response.status_code, 403)
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.status, Ticket.Status.PENDING)
+
+    def test_management_cannot_change_status(self):
+        self.client.login(username="direccion1", password="pass12345")
+        response = self.client.post(
+            self.change_status_url(), {"status": Ticket.Status.IN_PROCESS}
+        )
+        # Management has no visibility into any ticket in this block, so
+        # the ticket lookup itself fails before the permission check.
+        self.assertEqual(response.status_code, 404)
+
+    def test_area_manager_can_change_status_of_own_area_ticket(self):
+        self.client.login(username="jefe_ti", password="pass12345")
+        response = self.client.post(
+            self.change_status_url(), {"status": Ticket.Status.IN_PROCESS}
+        )
+        self.assertEqual(response.status_code, 302)
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.status, Ticket.Status.IN_PROCESS)
+
+    def test_area_manager_cannot_change_status_of_other_area_ticket(self):
+        self.client.login(username="jefe_rrhh", password="pass12345")
+        response = self.client.post(
+            self.change_status_url(), {"status": Ticket.Status.IN_PROCESS}
+        )
+        self.assertEqual(response.status_code, 404)
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.status, Ticket.Status.PENDING)
+
+    def test_admin_can_change_status_of_any_ticket(self):
+        self.client.login(username="admin1", password="pass12345")
+        response = self.client.post(
+            self.change_status_url(), {"status": Ticket.Status.IN_PROCESS}
+        )
+        self.assertEqual(response.status_code, 302)
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.status, Ticket.Status.IN_PROCESS)
+
+    def test_manipulated_post_cannot_skip_pending_to_resolved(self):
+        self.client.login(username="jefe_ti", password="pass12345")
+        response = self.client.post(
+            self.change_status_url(), {"status": Ticket.Status.RESOLVED}
+        )
+        self.assertEqual(response.status_code, 302)
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.status, Ticket.Status.PENDING)
+        self.assertEqual(TicketHistory.objects.filter(ticket=self.ticket).count(), 1)
+
+    def test_manipulated_post_cannot_go_in_process_to_pending(self):
+        self.client.login(username="jefe_ti", password="pass12345")
+        self.client.post(self.change_status_url(), {"status": Ticket.Status.IN_PROCESS})
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.status, Ticket.Status.IN_PROCESS)
+        history_count = TicketHistory.objects.filter(ticket=self.ticket).count()
+
+        response = self.client.post(
+            self.change_status_url(), {"status": Ticket.Status.PENDING}
+        )
+        self.assertEqual(response.status_code, 302)
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.status, Ticket.Status.IN_PROCESS)
+        self.assertEqual(
+            TicketHistory.objects.filter(ticket=self.ticket).count(), history_count
+        )
+
+    def test_manipulated_post_cannot_reopen_resolved_to_in_process(self):
+        self.client.login(username="jefe_ti", password="pass12345")
+        self.client.post(self.change_status_url(), {"status": Ticket.Status.IN_PROCESS})
+        self.client.post(self.change_status_url(), {"status": Ticket.Status.RESOLVED})
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.status, Ticket.Status.RESOLVED)
+        history_count = TicketHistory.objects.filter(ticket=self.ticket).count()
+
+        response = self.client.post(
+            self.change_status_url(), {"status": Ticket.Status.IN_PROCESS}
+        )
+        self.assertEqual(response.status_code, 302)
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.status, Ticket.Status.RESOLVED)
+        self.assertEqual(
+            TicketHistory.objects.filter(ticket=self.ticket).count(), history_count
+        )
+
+    def test_area_manager_cannot_bypass_area_restriction_via_manipulated_post(self):
+        self.client.login(username="jefe_rrhh", password="pass12345")
+        response = self.client.post(
+            self.change_status_url(), {"status": Ticket.Status.IN_PROCESS}
+        )
+        self.assertEqual(response.status_code, 404)
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.status, Ticket.Status.PENDING)
+
+    def test_resolved_ticket_has_no_further_actions(self):
+        self.client.login(username="jefe_ti", password="pass12345")
+        self.client.post(self.change_status_url(), {"status": Ticket.Status.IN_PROCESS})
+        self.client.post(self.change_status_url(), {"status": Ticket.Status.RESOLVED})
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.status, Ticket.Status.RESOLVED)
+
+        response = self.client.post(
+            self.change_status_url(), {"status": Ticket.Status.IN_PROCESS}
+        )
+        self.assertEqual(response.status_code, 302)
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.status, Ticket.Status.RESOLVED)
+        self.assertEqual(TicketHistory.objects.filter(ticket=self.ticket).count(), 3)
