@@ -278,3 +278,104 @@ class TicketPermissionTests(TestCase):
         self.client.login(username="admin1", password="pass12345")
         response = self.client.get(reverse("tickets:detail", args=[self.ticket.pk]))
         self.assertEqual(response.status_code, 200)
+
+
+class TicketAssignmentViewTests(TestCase):
+    """Manual (re)assignment permissions, exercised through the view layer."""
+
+    def setUp(self):
+        self.area_ti = Area.objects.create(name="TI")
+        self.area_rrhh = Area.objects.create(name="RRHH")
+        self.category = Category.objects.create(name="Hardware", area=self.area_ti)
+
+        self.employee = User.objects.create_user(
+            username="empleado1", password="pass12345",
+            role=User.Role.EMPLOYEE, area=self.area_ti,
+        )
+        self.manager_ti = User.objects.create_user(
+            username="jefe_ti", password="pass12345",
+            role=User.Role.AREA_MANAGER, area=self.area_ti,
+        )
+        self.other_manager_ti = User.objects.create_user(
+            username="jefe_ti_2", password="pass12345",
+            role=User.Role.AREA_MANAGER, area=self.area_ti,
+        )
+        self.manager_rrhh = User.objects.create_user(
+            username="jefe_rrhh", password="pass12345",
+            role=User.Role.AREA_MANAGER, area=self.area_rrhh,
+        )
+        self.admin_user = User.objects.create_user(
+            username="admin1", password="pass12345", role=User.Role.ADMIN,
+        )
+        self.management_user = User.objects.create_user(
+            username="direccion1", password="pass12345", role=User.Role.MANAGEMENT,
+        )
+
+        self.ticket = Ticket.objects.create_ticket(
+            title="Impresora no funciona",
+            description="desc",
+            category=self.category,
+            created_by=self.employee,
+        )
+
+    def test_ticket_creation_triggers_automatic_assignment(self):
+        self.client.login(username="empleado1", password="pass12345")
+        response = self.client.post(
+            reverse("tickets:create"),
+            {
+                "title": "Nuevo con auto asignación",
+                "description": "desc",
+                "category": self.category.pk,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        ticket = Ticket.objects.get(title="Nuevo con auto asignación")
+        self.assertEqual(ticket.assigned_to, self.manager_ti)
+        self.assertEqual(ticket.status, Ticket.Status.PENDING)
+
+    def test_employee_cannot_assign(self):
+        self.client.login(username="empleado1", password="pass12345")
+        response = self.client.get(reverse("tickets:assign", args=[self.ticket.pk]))
+        self.assertEqual(response.status_code, 403)
+
+    def test_management_cannot_assign(self):
+        self.client.login(username="direccion1", password="pass12345")
+        response = self.client.get(reverse("tickets:assign", args=[self.ticket.pk]))
+        # Management has no visibility into any ticket in this block, so
+        # the ticket lookup itself fails before the permission check.
+        self.assertEqual(response.status_code, 404)
+
+    def test_area_manager_can_assign_within_own_area(self):
+        self.client.login(username="jefe_ti", password="pass12345")
+        response = self.client.post(
+            reverse("tickets:assign", args=[self.ticket.pk]),
+            {"assigned_to": self.other_manager_ti.pk},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.assigned_to, self.other_manager_ti)
+
+    def test_area_manager_cannot_assign_ticket_of_another_area(self):
+        self.client.login(username="jefe_rrhh", password="pass12345")
+        response = self.client.get(reverse("tickets:assign", args=[self.ticket.pk]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_area_manager_cannot_assign_to_manager_of_another_area(self):
+        self.client.login(username="jefe_ti", password="pass12345")
+        response = self.client.post(
+            reverse("tickets:assign", args=[self.ticket.pk]),
+            {"assigned_to": self.manager_rrhh.pk},
+        )
+        self.assertEqual(response.status_code, 200)  # re-renders form with error
+        self.ticket.refresh_from_db()
+        self.assertIsNone(self.ticket.assigned_to)
+
+    def test_admin_can_assign_globally(self):
+        self.client.login(username="admin1", password="pass12345")
+        response = self.client.post(
+            reverse("tickets:assign", args=[self.ticket.pk]),
+            {"assigned_to": self.manager_ti.pk},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.assigned_to, self.manager_ti)

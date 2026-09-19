@@ -1,6 +1,7 @@
 from django import forms
 
 from administration.models import Category
+from users.models import User
 
 from .models import Ticket
 
@@ -19,3 +20,22 @@ class TicketCreateForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         # Only active categories may be selected when creating a ticket.
         self.fields["category"].queryset = Category.objects.filter(is_active=True)
+
+
+class TicketAssignForm(forms.Form):
+    assigned_to = forms.ModelChoiceField(
+        queryset=User.objects.none(),
+        label="Responsable",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+
+    def __init__(self, *args, ticket=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Only active Area Managers of the ticket's own area are eligible.
+        # This mirrors the Round Robin pool and is enforced here (not just
+        # hidden in the UI) so an out-of-area id cannot be submitted.
+        self.fields["assigned_to"].queryset = User.objects.filter(
+            role=User.Role.AREA_MANAGER,
+            area=ticket.category.area,
+            is_active=True,
+        )
