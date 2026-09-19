@@ -17,5 +17,6 @@ urlpatterns = [
     path("tickets/", include("tickets.urls")),
     path("notifications/", include("notifications.urls")),
     path("dashboard/", include("reports.urls")),
+    path("administration/", include("administration.urls")),
     path("", HomeView.as_view(), name="home"),
 ]

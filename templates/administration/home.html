@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Administración - TicketFlow{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-3">Administración</h1>
+<div class="row g-3">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h2 class="h5">Usuarios</h2>
+                <p class="text-muted small">Rol, área y estado activo/inactivo.</p>
+                <a class="btn btn-primary btn-sm" href="{% url 'administration:user_list' %}">Ver usuarios</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h2 class="h5">Áreas</h2>
+                <p class="text-muted small">Unidades organizacionales.</p>
+                <a class="btn btn-primary btn-sm" href="{% url 'administration:area_list' %}">Ver áreas</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h2 class="h5">Categorías</h2>
+                <p class="text-muted small">Siempre pertenecen a un área.</p>
+                <a class="btn btn-primary btn-sm" href="{% url 'administration:category_list' %}">Ver categorías</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

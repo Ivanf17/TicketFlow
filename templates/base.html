@@ -28,6 +28,11 @@
                             <a class="nav-link" href="{% url 'reports:dashboard' %}">Dashboard</a>
                         </li>
                         {% endif %}
+                        {% if user.role == user.Role.ADMIN %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'administration:home' %}">Administración</a>
+                        </li>
+                        {% endif %}
                         <li class="nav-item">
                             <a class="nav-link" href="{% url 'notifications:list' %}">Notificaciones ({{ unread_notifications_count }})</a>
                         </li>

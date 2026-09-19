@@ -1,5 +1,6 @@
 import datetime
 
+from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -9,6 +10,8 @@ from assignment.services import assign_ticket
 from tickets.models import Ticket, TicketHistory
 from tickets.services import change_ticket_status
 from users.models import User
+
+from .permissions import get_dashboard_tickets_queryset
 
 
 def make_ticket(category, created_by, title="Ticket"):
@@ -186,19 +189,28 @@ class DashboardAreaScopeTests(DashboardBaseTestCase):
         area_names = [row["category__area__name"] for row in response.context["by_area"]]
         self.assertEqual(area_names, ["TI"])
 
-    def test_area_manager_without_area_sees_no_tickets_and_no_leak(self):
-        # area=None bypasses User.clean() (only enforced via full_clean()
-        # / forms, not on create_user()), so this is a real state the
-        # dashboard can encounter and must handle safely.
-        User.objects.create_user(
-            username="jefe_sin_area", password="pass12345",
-            role=User.Role.AREA_MANAGER,
-        )
-        self.client.login(username="jefe_sin_area", password="pass12345")
-        response = self.client.get(self.dashboard_url())
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["total"], 0)
-        self.assertEqual(response.context["by_area"], [])
+    def test_area_manager_without_area_cannot_be_persisted_and_is_handled_safely(self):
+        # Block 8 added a DB-level CheckConstraint that makes an
+        # area_manager without an area impossible to persist via the
+        # ORM (users.tests.UserAreaDatabaseConstraintTests covers that
+        # guarantee directly) -- unlike when this test was written in
+        # Block 7, area=None is no longer a state create_user() can
+        # produce. This test now verifies both halves: (1) the
+        # constraint actually blocks it here too, and (2) the
+        # dashboard's own queryset logic still degrades safely (no
+        # crash, no leak) for an area-less area_manager, checked
+        # directly against an in-memory, never-persisted instance,
+        # since such a row can no longer exist in the database.
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                User.objects.create_user(
+                    username="jefe_sin_area", password="pass12345",
+                    role=User.Role.AREA_MANAGER,
+                )
+
+        unsaved_manager = User(role=User.Role.AREA_MANAGER, area=None)
+        queryset = get_dashboard_tickets_queryset(unsaved_manager)
+        self.assertEqual(list(queryset), [])
 
 
 class DashboardDateFilterTests(DashboardBaseTestCase):
