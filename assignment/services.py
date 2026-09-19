@@ -1,5 +1,6 @@
 from django.db import transaction
 
+from notifications.services import notify_ticket_assigned, notify_ticket_reassigned
 from users.models import User
 
 from .models import AreaAssignmentCursor, TicketAssignmentHistory
@@ -63,6 +64,14 @@ def assign_ticket(ticket, *, assigned_to, changed_by):
     no-op. This function never touches the Round Robin cursor, so manual
     (re)assignments cannot make automatic assignment lose track of the
     next responsible.
+
+    A notification is sent to the new responsible, inside the same
+    transaction as the ticket update and history entry: "Nuevo ticket
+    asignado" when there was no previous responsible (first assignment,
+    whether automatic or manual), "Ticket reasignado" when a real
+    reassignment replaces a previous responsible. No notification is
+    sent when there is no active manager to assign to, and none is sent
+    to the previous responsible.
     """
     if assigned_to.area_id != ticket.category.area_id:
         raise AssignmentError(
@@ -82,6 +91,10 @@ def assign_ticket(ticket, *, assigned_to, changed_by):
             new_assigned_to=assigned_to,
             changed_by=changed_by,
         )
+        if previous is None:
+            notify_ticket_assigned(ticket, recipient=assigned_to)
+        else:
+            notify_ticket_reassigned(ticket, recipient=assigned_to)
     return ticket
 
 

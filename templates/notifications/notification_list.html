@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Notificaciones - TicketFlow{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Notificaciones</h1>
+    {% if notifications %}
+    <form method="post" action="{% url 'notifications:mark_all_read' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline-secondary btn-sm">Marcar todas como leídas</button>
+    </form>
+    {% endif %}
+</div>
+
+{% if notifications %}
+<ul class="list-group">
+    {% for notification in notifications %}
+    <li class="list-group-item {% if not notification.is_read %}list-group-item-light{% endif %}">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <div class="{% if not notification.is_read %}fw-bold{% endif %}">{{ notification.title }}</div>
+                <div class="text-muted small">{{ notification.message }}</div>
+                <div class="text-muted small">
+                    {{ notification.created_at|date:"d/m/Y H:i" }}
+                    &middot;
+                    {% if notification.is_read %}Leída{% else %}Sin leer{% endif %}
+                    &middot;
+                    <a href="{% url 'tickets:detail' notification.ticket.pk %}">Ver ticket {{ notification.ticket.ticket_number }}</a>
+                </div>
+            </div>
+            {% if not notification.is_read %}
+            <form method="post" action="{% url 'notifications:mark_read' notification.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-primary btn-sm">Marcar como leída</button>
+            </form>
+            {% endif %}
+        </div>
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p>No tienes notificaciones.</p>
+{% endif %}
+{% endblock %}

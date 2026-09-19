@@ -1,5 +1,7 @@
 from django.db import transaction
 
+from notifications.services import notify_ticket_status_changed
+
 from .models import Ticket, TicketHistory
 
 
@@ -30,9 +32,10 @@ def change_ticket_status(ticket, *, new_status, changed_by):
     with ``select_for_update`` and its status re-read from the database
     inside the transaction, so a concurrent change_ticket_status call on
     the same ticket can't race past a stale in-memory status. The ticket
-    update and the TicketHistory entry are written atomically: if the
-    transition is invalid, nothing is written at all (no ticket update,
-    no history entry).
+    update, the TicketHistory entry and the notification to the ticket's
+    creator are all written atomically: if the transition is invalid,
+    nothing is written at all (no ticket update, no history entry, no
+    notification).
     """
     with transaction.atomic():
         current_status = (
@@ -53,4 +56,5 @@ def change_ticket_status(ticket, *, new_status, changed_by):
             status=new_status,
             changed_by=changed_by,
         )
+        notify_ticket_status_changed(ticket, recipient=ticket.created_by)
     return ticket

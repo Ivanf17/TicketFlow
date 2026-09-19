@@ -1,6 +1,7 @@
 from django.test import TestCase
 
 from administration.models import Area, Category
+from notifications.models import Notification
 from tickets.models import Ticket
 from users.models import User
 
@@ -235,3 +236,109 @@ class ReassignmentTests(TestCase):
         auto_assign_ticket(ticket_3)
         ticket_3.refresh_from_db()
         self.assertEqual(ticket_3.assigned_to, self.manager_a)
+
+
+class AssignmentNotificationTests(TestCase):
+    def setUp(self):
+        self.area = Area.objects.create(name="TI")
+        self.other_area = Area.objects.create(name="Mantenimiento")
+        self.category = Category.objects.create(name="Hardware", area=self.area)
+        self.employee = User.objects.create_user(
+            username="empleado", password="pass12345",
+            role=User.Role.EMPLOYEE, area=self.area,
+        )
+        self.manager_a = User.objects.create_user(
+            username="manager_a", password="pass12345",
+            role=User.Role.AREA_MANAGER, area=self.area,
+        )
+        self.manager_b = User.objects.create_user(
+            username="manager_b", password="pass12345",
+            role=User.Role.AREA_MANAGER, area=self.area,
+        )
+        self.other_area_manager = User.objects.create_user(
+            username="jefe_mant", password="pass12345",
+            role=User.Role.AREA_MANAGER, area=self.other_area,
+        )
+        self.admin = User.objects.create_user(
+            username="admin1", password="pass12345", role=User.Role.ADMIN,
+        )
+
+    def test_automatic_assignment_notifies_the_new_manager(self):
+        ticket = make_ticket(self.category, self.employee)
+        auto_assign_ticket(ticket)
+
+        notifications = Notification.objects.filter(
+            recipient=self.manager_a, ticket=ticket
+        )
+        self.assertEqual(notifications.count(), 1)
+        notification = notifications.first()
+        self.assertEqual(
+            notification.notification_type, Notification.NotificationType.TICKET_ASSIGNED
+        )
+        self.assertIn(ticket.ticket_number, notification.message)
+
+    def test_no_manager_available_generates_no_notification(self):
+        area_without_managers = Area.objects.create(name="RRHH")
+        empty_category = Category.objects.create(
+            name="Sin managers", area=area_without_managers
+        )
+        ticket = make_ticket(empty_category, self.employee)
+        auto_assign_ticket(ticket)
+        self.assertIsNone(ticket.assigned_to)
+        self.assertEqual(Notification.objects.filter(ticket=ticket).count(), 0)
+
+    def test_manual_first_assignment_notifies_new_manager_as_assigned(self):
+        # A manual assignment of a still-unassigned ticket (previous=None)
+        # must be classified the same way as an automatic first
+        # assignment: TICKET_ASSIGNED, not TICKET_REASSIGNED.
+        ticket = make_ticket(self.category, self.employee)
+        assign_ticket(ticket, assigned_to=self.manager_a, changed_by=self.admin)
+
+        notifications = Notification.objects.filter(
+            recipient=self.manager_a, ticket=ticket
+        )
+        self.assertEqual(notifications.count(), 1)
+        self.assertEqual(
+            notifications.first().notification_type,
+            Notification.NotificationType.TICKET_ASSIGNED,
+        )
+
+    def test_manual_reassignment_notifies_only_the_new_manager(self):
+        ticket = make_ticket(self.category, self.employee)
+        assign_ticket(ticket, assigned_to=self.manager_a, changed_by=self.admin)
+        Notification.objects.filter(ticket=ticket).delete()  # isolate the reassignment
+
+        assign_ticket(ticket, assigned_to=self.manager_b, changed_by=self.admin)
+
+        new_manager_notifications = Notification.objects.filter(
+            recipient=self.manager_b, ticket=ticket
+        )
+        self.assertEqual(new_manager_notifications.count(), 1)
+        self.assertEqual(
+            new_manager_notifications.first().notification_type,
+            Notification.NotificationType.TICKET_REASSIGNED,
+        )
+        # The previous responsible must not be notified of losing the ticket.
+        self.assertEqual(
+            Notification.objects.filter(recipient=self.manager_a, ticket=ticket).count(),
+            0,
+        )
+
+    def test_reassigning_to_the_same_manager_creates_no_duplicate_notification(self):
+        ticket = make_ticket(self.category, self.employee)
+        assign_ticket(ticket, assigned_to=self.manager_a, changed_by=self.admin)
+        count_before = Notification.objects.filter(ticket=ticket).count()
+
+        assign_ticket(ticket, assigned_to=self.manager_a, changed_by=self.admin)
+
+        self.assertEqual(
+            Notification.objects.filter(ticket=ticket).count(), count_before
+        )
+
+    def test_failed_assignment_leaves_no_orphaned_notification(self):
+        ticket = make_ticket(self.category, self.employee)
+        with self.assertRaises(AssignmentError):
+            assign_ticket(
+                ticket, assigned_to=self.other_area_manager, changed_by=self.admin
+            )
+        self.assertEqual(Notification.objects.filter(ticket=ticket).count(), 0)

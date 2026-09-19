@@ -4,6 +4,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from administration.models import Area, Category
+from notifications.models import Notification
 from users.models import User
 
 from .models import Ticket, TicketHistory
@@ -668,3 +669,78 @@ class TicketStatusViewTests(TestCase):
         self.ticket.refresh_from_db()
         self.assertEqual(self.ticket.status, Ticket.Status.RESOLVED)
         self.assertEqual(TicketHistory.objects.filter(ticket=self.ticket).count(), 3)
+
+
+class TicketStatusNotificationTests(TestCase):
+    def setUp(self):
+        self.area = Area.objects.create(name="TI")
+        self.category = Category.objects.create(name="Hardware", area=self.area)
+        self.employee = User.objects.create_user(
+            username="empleado", password="pass12345",
+            role=User.Role.EMPLOYEE, area=self.area,
+        )
+        self.manager = User.objects.create_user(
+            username="jefe_ti", password="pass12345",
+            role=User.Role.AREA_MANAGER, area=self.area,
+        )
+        self.ticket = Ticket.objects.create_ticket(
+            title="Impresora rota", description="desc",
+            category=self.category, created_by=self.employee,
+        )
+
+    def test_pending_to_in_process_notifies_creator(self):
+        change_ticket_status(
+            self.ticket, new_status=Ticket.Status.IN_PROCESS, changed_by=self.manager
+        )
+        notifications = Notification.objects.filter(
+            recipient=self.employee, ticket=self.ticket
+        )
+        self.assertEqual(notifications.count(), 1)
+        notification = notifications.first()
+        self.assertEqual(
+            notification.notification_type,
+            Notification.NotificationType.TICKET_STATUS_CHANGED,
+        )
+        self.assertIn("En proceso", notification.message)
+
+    def test_in_process_to_resolved_notifies_creator(self):
+        change_ticket_status(
+            self.ticket, new_status=Ticket.Status.IN_PROCESS, changed_by=self.manager
+        )
+        change_ticket_status(
+            self.ticket, new_status=Ticket.Status.RESOLVED, changed_by=self.manager
+        )
+        notifications = Notification.objects.filter(
+            recipient=self.employee,
+            ticket=self.ticket,
+            notification_type=Notification.NotificationType.TICKET_STATUS_CHANGED,
+        )
+        self.assertEqual(notifications.count(), 2)
+        # Order by id (monotonic, unlike created_at which can tie on
+        # platforms with coarse clock resolution for two rapid creates).
+        last_notification = notifications.order_by("id").last()
+        self.assertIn("Resuelto", last_notification.message)
+
+    def test_invalid_transition_generates_no_notification(self):
+        with self.assertRaises(StatusTransitionError):
+            change_ticket_status(
+                self.ticket, new_status=Ticket.Status.RESOLVED, changed_by=self.manager
+            )
+        self.assertEqual(Notification.objects.filter(ticket=self.ticket).count(), 0)
+
+    def test_resolved_reopen_attempt_generates_no_notification(self):
+        change_ticket_status(
+            self.ticket, new_status=Ticket.Status.IN_PROCESS, changed_by=self.manager
+        )
+        change_ticket_status(
+            self.ticket, new_status=Ticket.Status.RESOLVED, changed_by=self.manager
+        )
+        count_before = Notification.objects.filter(ticket=self.ticket).count()
+
+        with self.assertRaises(StatusTransitionError):
+            change_ticket_status(
+                self.ticket, new_status=Ticket.Status.IN_PROCESS, changed_by=self.manager
+            )
+        self.assertEqual(
+            Notification.objects.filter(ticket=self.ticket).count(), count_before
+        )

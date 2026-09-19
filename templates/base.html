@@ -24,6 +24,9 @@
                             <a class="nav-link" href="{% url 'tickets:list' %}">Tickets</a>
                         </li>
                         <li class="nav-item">
+                            <a class="nav-link" href="{% url 'notifications:list' %}">Notificaciones ({{ unread_notifications_count }})</a>
+                        </li>
+                        <li class="nav-item">
                             <span class="navbar-text text-light me-3">{{ user.username }} ({{ user.get_role_display }})</span>
                         </li>
                         <li class="nav-item">
