@@ -33,6 +33,13 @@ pero se despliega y ejecuta como una sola aplicación.
 - **Gestión de configuración:** variables de entorno vía `python-dotenv`
   y un archivo `.env` local (no versionado). Nunca se hardcodean
   credenciales, claves secretas ni contraseñas en el código.
+- **Email:** se usa exclusivamente para la recuperación de contraseña,
+  con las vistas nativas de `django.contrib.auth`. Las notificaciones
+  de tickets siguen siendo internas únicamente (modelo
+  `notifications.Notification`); no se envía correo por eventos de
+  tickets. `EMAIL_BACKEND` y el resto de la configuración de correo
+  salen de variables de entorno; en desarrollo y en los tests se usa
+  por defecto el backend de consola de Django.
 
 ## Estructura de módulos (apps de Django)
 
@@ -42,8 +49,11 @@ Ubicadas en la raíz del proyecto, junto al paquete de configuración
 - `users/` — usuarios y autenticación. Modelo de usuario personalizado
   (`users.User`, `AUTH_USER_MODEL`) con roles (`employee`,
   `area_manager`, `admin`, `management`) y relación con `Area`.
-- `tickets/` — ciclo de vida de los tickets (creación, estados,
-  comentarios). Estructura preparada, sin lógica funcional todavía.
+- `tickets/` — ciclo de vida de los tickets: creación, estados
+  (`PENDING` → `IN_PROCESS` → `RESOLVED`, `RESOLVED` terminal) y
+  comentarios append-only (`TicketComment`), visibles bajo la misma
+  regla de visibilidad del ticket (`tickets.permissions
+  .get_visible_tickets`).
 - `assignment/` — asignación de tickets a responsables/áreas.
   Estructura preparada, sin lógica funcional todavía.
 - `notifications/` — notificaciones a usuarios sobre eventos de
@@ -77,6 +87,17 @@ funcionalidad real que exponer.
 - No se agregan dependencias, frameworks o infraestructuras
   (microservicios, colas, cachés, SPA, etc.) que no sean necesarias
   para el alcance académico del proyecto.
+- `users.User.email` se mantiene deliberadamente opcional y no único
+  (sin `unique=True`, sin `blank=False`) para este MVP: alcanza para
+  que la recuperación de contraseña nativa de Django funcione, y evita
+  una migración de datos para verificar correos duplicados o vacíos en
+  usuarios ya existentes. Un usuario sin correo cargado simplemente no
+  podrá recuperar su contraseña por este medio, sin que eso se revele
+  como un error distinto al de un correo inexistente (el formulario de
+  recuperación nunca indica si una cuenta existe o no).
+- Las listas principales (tickets, usuarios, notificaciones, áreas,
+  categorías) usan paginación simple con `django.core.paginator
+  .Paginator` y un tamaño de página compartido (`settings.PAGE_SIZE`).
 
 ## Cómo ejecutar el proyecto
 

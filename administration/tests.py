@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db.models import ProtectedError
 from django.test import TestCase
@@ -689,3 +690,76 @@ class UserEditRegressionTests(TestCase):
         )
         self.employee.refresh_from_db()
         self.assertEqual(self.employee.password, original_password_hash)
+
+
+class AdministrationListPaginationTests(TestCase):
+    """Block 9: area/category/user admin lists use Paginator.get_page(),
+    which must never turn an out-of-range or non-numeric ``?page=`` into
+    a 500.
+    """
+
+    def setUp(self):
+        self.page_size = settings.PAGE_SIZE
+        self.admin = User.objects.create_user(
+            username="admin1", password="pass12345", role=User.Role.ADMIN,
+        )
+        self.areas = [
+            Area.objects.create(name=f"Area {i}")
+            for i in range(self.page_size + 3)
+        ]
+        for i, area in enumerate(self.areas):
+            Category.objects.create(name=f"Categoria {i}", area=area)
+        for i in range(self.page_size + 3):
+            User.objects.create_user(
+                username=f"user_{i}", password="pass12345",
+                role=User.Role.ADMIN,
+            )
+        self.client.login(username="admin1", password="pass12345")
+
+    def test_area_list_page_1_returns_at_most_page_size_items(self):
+        response = self.client.get(reverse("administration:area_list"), {"page": 1})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context["page_obj"]), self.page_size)
+
+    def test_area_list_out_of_range_page_not_500(self):
+        response = self.client.get(reverse("administration:area_list"), {"page": 999})
+        self.assertEqual(response.status_code, 200)
+
+    def test_area_list_non_numeric_page_not_500(self):
+        response = self.client.get(reverse("administration:area_list"), {"page": "abc"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["page_obj"].number, 1)
+
+    def test_category_list_page_1_returns_at_most_page_size_items(self):
+        response = self.client.get(
+            reverse("administration:category_list"), {"page": 1}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context["page_obj"]), self.page_size)
+
+    def test_category_list_out_of_range_page_not_500(self):
+        response = self.client.get(
+            reverse("administration:category_list"), {"page": 999}
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_category_list_non_numeric_page_not_500(self):
+        response = self.client.get(
+            reverse("administration:category_list"), {"page": "abc"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["page_obj"].number, 1)
+
+    def test_user_list_page_1_returns_at_most_page_size_items(self):
+        response = self.client.get(reverse("administration:user_list"), {"page": 1})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context["page_obj"]), self.page_size)
+
+    def test_user_list_out_of_range_page_not_500(self):
+        response = self.client.get(reverse("administration:user_list"), {"page": 999})
+        self.assertEqual(response.status_code, 200)
+
+    def test_user_list_non_numeric_page_not_500(self):
+        response = self.client.get(reverse("administration:user_list"), {"page": "abc"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["page_obj"].number, 1)

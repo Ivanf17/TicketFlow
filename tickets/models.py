@@ -132,3 +132,34 @@ class TicketHistory(models.Model):
                 f"{self.get_previous_status_display()} -> {self.get_status_display()}"
             )
         return f"{self.ticket.ticket_number} -> {self.get_status_display()}"
+
+
+class TicketComment(models.Model):
+    """Append-only comment on a ticket.
+
+    Purely informative: creating a comment never changes the ticket's
+    status, its assignment, or its status history. Visibility is not
+    re-implemented here -- it follows
+    ``tickets.permissions.get_visible_tickets`` exactly like the ticket
+    detail view, so whoever can see a ticket can see and add comments
+    on it, with no separate comment-level permission matrix.
+    """
+
+    ticket = models.ForeignKey(
+        Ticket, on_delete=models.CASCADE, related_name="comments"
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="ticket_comments",
+    )
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+        verbose_name = "Ticket comment"
+        verbose_name_plural = "Ticket comments"
+
+    def __str__(self):
+        return f"{self.ticket.ticket_number} - {self.author.username}"

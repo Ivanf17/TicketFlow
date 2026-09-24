@@ -1,6 +1,8 @@
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.core.paginator import Paginator
 from django.db.models import ProtectedError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
@@ -36,7 +38,8 @@ def administration_home(request):
 def area_list(request):
     _require_admin(request)
     areas = Area.objects.order_by("name")
-    return render(request, "administration/area_list.html", {"areas": areas})
+    page_obj = Paginator(areas, settings.PAGE_SIZE).get_page(request.GET.get("page"))
+    return render(request, "administration/area_list.html", {"page_obj": page_obj})
 
 
 @login_required
@@ -101,7 +104,8 @@ def area_delete(request, pk):
 def category_list(request):
     _require_admin(request)
     categories = Category.objects.select_related("area").order_by("area__name", "name")
-    return render(request, "administration/category_list.html", {"categories": categories})
+    page_obj = Paginator(categories, settings.PAGE_SIZE).get_page(request.GET.get("page"))
+    return render(request, "administration/category_list.html", {"page_obj": page_obj})
 
 
 @login_required
@@ -165,7 +169,8 @@ def category_delete(request, pk):
 def user_list(request):
     _require_admin(request)
     users = User.objects.select_related("area").order_by("username")
-    return render(request, "administration/user_list.html", {"users": users})
+    page_obj = Paginator(users, settings.PAGE_SIZE).get_page(request.GET.get("page"))
+    return render(request, "administration/user_list.html", {"page_obj": page_obj})
 
 
 @login_required

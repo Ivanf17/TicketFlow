@@ -3,7 +3,7 @@ from django import forms
 from administration.models import Category
 from users.models import User
 
-from .models import Ticket
+from .models import Ticket, TicketComment
 from .services import get_next_status
 
 
@@ -40,6 +40,21 @@ class TicketAssignForm(forms.Form):
             area=ticket.category.area,
             is_active=True,
         )
+
+
+class TicketCommentForm(forms.ModelForm):
+    class Meta:
+        model = TicketComment
+        fields = ["content"]
+        widgets = {
+            "content": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 2,
+                    "placeholder": "Escribe un comentario...",
+                }
+            ),
+        }
 
 
 class TicketStatusChangeForm(forms.Form):

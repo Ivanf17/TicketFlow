@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.test import TestCase
 from django.urls import reverse
 
@@ -52,7 +53,8 @@ class NotificationModelTests(TestCase):
         self.assertIn("TICKET_ASSIGNED", types)
         self.assertIn("TICKET_REASSIGNED", types)
         self.assertIn("TICKET_STATUS_CHANGED", types)
-        self.assertEqual(len(types), 3)
+        self.assertIn("TICKET_COMMENT_ADDED", types)
+        self.assertEqual(len(types), 4)
 
     def test_mark_as_read_sets_is_read_and_read_at(self):
         notification = Notification.objects.create(
@@ -234,3 +236,52 @@ class UnreadNotificationsCounterTests(TestCase):
         self.client.login(username="jefe_ti", password="pass12345")
         response = self.client.get(reverse("home"))
         self.assertContains(response, "Notificaciones (0)")
+
+
+class NotificationListPaginationTests(TestCase):
+    """Block 9: notification_list uses Paginator.get_page(), which must
+    never turn an out-of-range or non-numeric ``?page=`` into a 500.
+    """
+
+    def setUp(self):
+        self.area = Area.objects.create(name="TI")
+        self.category = Category.objects.create(name="Hardware", area=self.area)
+        self.employee = User.objects.create_user(
+            username="empleado", password="pass12345",
+            role=User.Role.EMPLOYEE, area=self.area,
+        )
+        self.manager = User.objects.create_user(
+            username="jefe_ti", password="pass12345",
+            role=User.Role.AREA_MANAGER, area=self.area,
+        )
+        self.ticket = Ticket.objects.create_ticket(
+            title="Impresora rota", description="desc",
+            category=self.category, created_by=self.employee,
+        )
+        for i in range(settings.PAGE_SIZE + 5):
+            Notification.objects.create(
+                recipient=self.manager, ticket=self.ticket,
+                notification_type=Notification.NotificationType.TICKET_ASSIGNED,
+                title=f"t{i}", message=f"m{i}",
+            )
+        self.client.login(username="jefe_ti", password="pass12345")
+
+    def test_page_1_returns_at_most_page_size_items(self):
+        response = self.client.get(reverse("notifications:list"), {"page": 1})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context["page_obj"]), settings.PAGE_SIZE)
+
+    def test_later_page_returns_remaining_items(self):
+        response = self.client.get(reverse("notifications:list"), {"page": 2})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context["page_obj"]), 5)
+
+    def test_out_of_range_page_falls_back_to_last_page_not_500(self):
+        response = self.client.get(reverse("notifications:list"), {"page": 999})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["page_obj"].number, 2)
+
+    def test_non_numeric_page_falls_back_to_first_page_not_500(self):
+        response = self.client.get(reverse("notifications:list"), {"page": "abc"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["page_obj"].number, 1)

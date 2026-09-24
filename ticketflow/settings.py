@@ -155,3 +155,25 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LOGIN_URL = "users:login"
 LOGIN_REDIRECT_URL = "home"
 LOGOUT_REDIRECT_URL = "home"
+
+
+# Email (used only for password reset -- ticket notifications remain
+# internal-only, no email is sent for them). Defaults to the console
+# backend so the reset flow can be exercised in dev/testing without any
+# real mail server configured.
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
+)
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "localhost")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "25"))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", default=False)
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "no-reply@ticketflow.local")
+
+
+# Pagination
+# Single shared page size for every paginated list view (tickets, users,
+# notifications, areas, categories), so page length stays consistent
+# across the app instead of each view picking its own number.
+PAGE_SIZE = 20

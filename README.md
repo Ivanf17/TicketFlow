@@ -64,6 +64,15 @@ pip install -r requirements.txt
    | `DB_PASSWORD`   | Contraseña del usuario de PostgreSQL           |
    | `DB_HOST`       | Host de PostgreSQL (ej. `localhost`)           |
    | `DB_PORT`       | Puerto de PostgreSQL (ej. `5432`)              |
+   | `EMAIL_BACKEND` | Backend de correo de Django (por defecto, consola) |
+   | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS` | Configuración SMTP, solo si se usa un backend real |
+   | `DEFAULT_FROM_EMAIL` | Remitente de los correos de recuperación de contraseña |
+
+   El email solo se usa para la recuperación de contraseña; las
+   notificaciones de tickets son siempre internas. Con el backend de
+   consola (el valor por defecto), los correos de recuperación se
+   imprimen en la terminal donde corre `runserver`/`test` en vez de
+   enviarse de verdad, lo cual alcanza para desarrollo y pruebas.
 
 3. Crear la base de datos y el usuario en PostgreSQL (deben coincidir
    con los valores de `.env`), por ejemplo desde `psql`:

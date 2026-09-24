@@ -1,4 +1,6 @@
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -11,8 +13,11 @@ def notification_list(request):
     # Scoped to the authenticated user only: there is no way to pass a
     # different user's id here, so this can't be manipulated via the URL.
     notifications = Notification.objects.filter(recipient=request.user)
+    page_obj = Paginator(notifications, settings.PAGE_SIZE).get_page(
+        request.GET.get("page")
+    )
     return render(
-        request, "notifications/notification_list.html", {"notifications": notifications}
+        request, "notifications/notification_list.html", {"page_obj": page_obj}
     )
 
 

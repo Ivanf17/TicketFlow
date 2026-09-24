@@ -7,7 +7,7 @@ from administration.models import Area, Category
 from notifications.models import Notification
 from users.models import User
 
-from .models import Ticket, TicketHistory
+from .models import Ticket, TicketComment, TicketHistory
 from .services import StatusTransitionError, change_ticket_status
 
 
@@ -292,7 +292,7 @@ class TicketPermissionTests(TestCase):
         self.client.login(username="direccion1", password="pass12345")
         response = self.client.get(reverse("tickets:list"))
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(list(response.context["tickets"]), [])
+        self.assertEqual(list(response.context["page_obj"]), [])
 
     def test_management_cannot_view_ticket_detail(self):
         self.client.login(username="direccion1", password="pass12345")
@@ -761,3 +761,285 @@ class TicketStatusNotificationTests(TestCase):
         self.assertEqual(
             Notification.objects.filter(ticket=self.ticket).count(), count_before
         )
+
+
+class TicketCommentTests(TestCase):
+    """Block 9: TicketComment visibility/creation, reusing
+    get_visible_tickets exactly like ticket_detail (no separate
+    permission matrix), and its RESOLVED/state-machine independence.
+    """
+
+    def setUp(self):
+        self.area_ti = Area.objects.create(name="TI")
+        self.area_rrhh = Area.objects.create(name="RRHH")
+        self.category = Category.objects.create(name="Hardware", area=self.area_ti)
+
+        self.employee = User.objects.create_user(
+            username="empleado1", password="pass12345",
+            role=User.Role.EMPLOYEE, area=self.area_ti,
+        )
+        self.other_employee = User.objects.create_user(
+            username="empleado2", password="pass12345",
+            role=User.Role.EMPLOYEE, area=self.area_ti,
+        )
+        self.manager_ti = User.objects.create_user(
+            username="jefe_ti", password="pass12345",
+            role=User.Role.AREA_MANAGER, area=self.area_ti,
+        )
+        self.manager_rrhh = User.objects.create_user(
+            username="jefe_rrhh", password="pass12345",
+            role=User.Role.AREA_MANAGER, area=self.area_rrhh,
+        )
+        self.admin_user = User.objects.create_user(
+            username="admin1", password="pass12345", role=User.Role.ADMIN,
+        )
+        self.management_user = User.objects.create_user(
+            username="direccion1", password="pass12345", role=User.Role.MANAGEMENT,
+        )
+
+        self.ticket = Ticket.objects.create_ticket(
+            title="Impresora no funciona", description="desc",
+            category=self.category, created_by=self.employee,
+        )
+        self.ticket.assigned_to = self.manager_ti
+        self.ticket.save()
+
+    def comment_url(self, ticket=None):
+        return reverse("tickets:comment_create", args=[(ticket or self.ticket).pk])
+
+    def test_employee_can_comment_on_own_ticket(self):
+        self.client.login(username="empleado1", password="pass12345")
+        response = self.client.post(self.comment_url(), {"content": "Hola"})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(TicketComment.objects.filter(ticket=self.ticket).count(), 1)
+        comment = TicketComment.objects.get(ticket=self.ticket)
+        self.assertEqual(comment.author, self.employee)
+        self.assertEqual(comment.content, "Hola")
+
+    def test_employee_cannot_comment_on_others_ticket(self):
+        self.client.login(username="empleado2", password="pass12345")
+        response = self.client.post(self.comment_url(), {"content": "Intento"})
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(TicketComment.objects.filter(ticket=self.ticket).count(), 0)
+
+    def test_area_manager_can_comment_on_own_area_ticket(self):
+        self.client.login(username="jefe_ti", password="pass12345")
+        response = self.client.post(self.comment_url(), {"content": "Revisando"})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(TicketComment.objects.filter(ticket=self.ticket).count(), 1)
+
+    def test_area_manager_cannot_comment_on_other_area_ticket(self):
+        self.client.login(username="jefe_rrhh", password="pass12345")
+        response = self.client.post(self.comment_url(), {"content": "Intento"})
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(TicketComment.objects.filter(ticket=self.ticket).count(), 0)
+
+    def test_admin_can_comment_on_any_ticket(self):
+        self.client.login(username="admin1", password="pass12345")
+        response = self.client.post(self.comment_url(), {"content": "Nota admin"})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(TicketComment.objects.filter(ticket=self.ticket).count(), 1)
+
+    def test_management_cannot_comment(self):
+        self.client.login(username="direccion1", password="pass12345")
+        response = self.client.post(self.comment_url(), {"content": "Intento"})
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(TicketComment.objects.filter(ticket=self.ticket).count(), 0)
+
+    def test_get_request_is_not_allowed(self):
+        self.client.login(username="empleado1", password="pass12345")
+        response = self.client.get(self.comment_url())
+        self.assertEqual(response.status_code, 405)
+
+    def test_empty_content_is_rejected(self):
+        self.client.login(username="empleado1", password="pass12345")
+        response = self.client.post(self.comment_url(), {"content": ""})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(TicketComment.objects.filter(ticket=self.ticket).count(), 0)
+
+    def test_can_comment_on_resolved_ticket(self):
+        change_ticket_status(
+            self.ticket, new_status=Ticket.Status.IN_PROCESS, changed_by=self.manager_ti
+        )
+        change_ticket_status(
+            self.ticket, new_status=Ticket.Status.RESOLVED, changed_by=self.manager_ti
+        )
+        self.client.login(username="empleado1", password="pass12345")
+        response = self.client.post(self.comment_url(), {"content": "Gracias"})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(TicketComment.objects.filter(ticket=self.ticket).count(), 1)
+
+    def test_comment_does_not_change_ticket_status_or_reopen_resolved(self):
+        change_ticket_status(
+            self.ticket, new_status=Ticket.Status.IN_PROCESS, changed_by=self.manager_ti
+        )
+        change_ticket_status(
+            self.ticket, new_status=Ticket.Status.RESOLVED, changed_by=self.manager_ti
+        )
+        history_count = TicketHistory.objects.filter(ticket=self.ticket).count()
+
+        self.client.login(username="empleado1", password="pass12345")
+        self.client.post(self.comment_url(), {"content": "Comentario"})
+
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.status, Ticket.Status.RESOLVED)
+        self.assertEqual(
+            TicketHistory.objects.filter(ticket=self.ticket).count(), history_count
+        )
+
+    def test_comment_does_not_change_assignment(self):
+        self.client.login(username="admin1", password="pass12345")
+        self.client.post(self.comment_url(), {"content": "Comentario"})
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.assigned_to, self.manager_ti)
+
+    def test_comments_are_ordered_oldest_first(self):
+        self.client.login(username="empleado1", password="pass12345")
+        self.client.post(self.comment_url(), {"content": "Primero"})
+        self.client.post(self.comment_url(), {"content": "Segundo"})
+        contents = list(
+            TicketComment.objects.filter(ticket=self.ticket).values_list(
+                "content", flat=True
+            )
+        )
+        self.assertEqual(contents, ["Primero", "Segundo"])
+
+
+class TicketCommentNotificationTests(TestCase):
+    """Block 9: who gets notified when a comment is added."""
+
+    def setUp(self):
+        self.area = Area.objects.create(name="TI")
+        self.category = Category.objects.create(name="Hardware", area=self.area)
+        self.employee = User.objects.create_user(
+            username="empleado", password="pass12345",
+            role=User.Role.EMPLOYEE, area=self.area,
+        )
+        self.manager = User.objects.create_user(
+            username="jefe_ti", password="pass12345",
+            role=User.Role.AREA_MANAGER, area=self.area,
+        )
+        self.admin_user = User.objects.create_user(
+            username="admin1", password="pass12345", role=User.Role.ADMIN,
+        )
+        self.ticket = Ticket.objects.create_ticket(
+            title="Impresora rota", description="desc",
+            category=self.category, created_by=self.employee,
+        )
+        self.ticket.assigned_to = self.manager
+        self.ticket.save()
+
+    def comment_url(self):
+        return reverse("tickets:comment_create", args=[self.ticket.pk])
+
+    def test_employee_comment_notifies_assigned_to(self):
+        self.client.login(username="empleado", password="pass12345")
+        self.client.post(self.comment_url(), {"content": "Sigue fallando"})
+        notifications = Notification.objects.filter(
+            recipient=self.manager,
+            ticket=self.ticket,
+            notification_type=Notification.NotificationType.TICKET_COMMENT_ADDED,
+        )
+        self.assertEqual(notifications.count(), 1)
+
+    def test_area_manager_comment_notifies_creator(self):
+        self.client.login(username="jefe_ti", password="pass12345")
+        self.client.post(self.comment_url(), {"content": "Ya lo estoy viendo"})
+        notifications = Notification.objects.filter(
+            recipient=self.employee,
+            ticket=self.ticket,
+            notification_type=Notification.NotificationType.TICKET_COMMENT_ADDED,
+        )
+        self.assertEqual(notifications.count(), 1)
+
+    def test_admin_comment_notifies_creator(self):
+        self.client.login(username="admin1", password="pass12345")
+        self.client.post(self.comment_url(), {"content": "Nota admin"})
+        notifications = Notification.objects.filter(
+            recipient=self.employee,
+            ticket=self.ticket,
+            notification_type=Notification.NotificationType.TICKET_COMMENT_ADDED,
+        )
+        self.assertEqual(notifications.count(), 1)
+
+    def test_no_self_notification(self):
+        # Force the (otherwise unreachable via the UI, since only
+        # employees create tickets and only area_managers get assigned)
+        # edge case where the computed recipient equals the author, to
+        # confirm the guard in notify_ticket_comment_added holds.
+        Ticket.objects.filter(pk=self.ticket.pk).update(assigned_to=self.employee)
+        self.ticket.refresh_from_db()
+        self.client.login(username="empleado", password="pass12345")
+        self.client.post(self.comment_url(), {"content": "Nota"})
+        self.assertEqual(
+            Notification.objects.filter(
+                ticket=self.ticket,
+                notification_type=Notification.NotificationType.TICKET_COMMENT_ADDED,
+            ).count(),
+            0,
+        )
+
+    def test_no_notification_without_assigned_to(self):
+        self.ticket.assigned_to = None
+        self.ticket.save()
+        self.client.login(username="empleado", password="pass12345")
+        self.client.post(self.comment_url(), {"content": "Nadie asignado"})
+        self.assertEqual(
+            Notification.objects.filter(
+                ticket=self.ticket,
+                notification_type=Notification.NotificationType.TICKET_COMMENT_ADDED,
+            ).count(),
+            0,
+        )
+
+    def test_invalid_comment_generates_no_notification(self):
+        self.client.login(username="empleado", password="pass12345")
+        self.client.post(self.comment_url(), {"content": ""})
+        self.assertEqual(
+            Notification.objects.filter(
+                ticket=self.ticket,
+                notification_type=Notification.NotificationType.TICKET_COMMENT_ADDED,
+            ).count(),
+            0,
+        )
+
+
+class TicketListPaginationTests(TestCase):
+    """Block 9: ticket_list uses Paginator.get_page(), which must never
+    turn an out-of-range or non-numeric ``?page=`` into a 500.
+    """
+
+    def setUp(self):
+        from django.conf import settings
+
+        self.page_size = settings.PAGE_SIZE
+        self.area = Area.objects.create(name="TI")
+        self.category = Category.objects.create(name="Hardware", area=self.area)
+        self.admin_user = User.objects.create_user(
+            username="admin1", password="pass12345", role=User.Role.ADMIN,
+        )
+        self.employee = User.objects.create_user(
+            username="empleado", password="pass12345",
+            role=User.Role.EMPLOYEE, area=self.area,
+        )
+        for i in range(self.page_size + 3):
+            Ticket.objects.create_ticket(
+                title=f"Ticket {i}", description="desc",
+                category=self.category, created_by=self.employee,
+            )
+        self.client.login(username="admin1", password="pass12345")
+
+    def test_page_1_returns_at_most_page_size_items(self):
+        response = self.client.get(reverse("tickets:list"), {"page": 1})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context["page_obj"]), self.page_size)
+
+    def test_out_of_range_page_falls_back_to_last_page_not_500(self):
+        response = self.client.get(reverse("tickets:list"), {"page": 999})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["page_obj"].number, 2)
+
+    def test_non_numeric_page_falls_back_to_first_page_not_500(self):
+        response = self.client.get(reverse("tickets:list"), {"page": "abc"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["page_obj"].number, 1)

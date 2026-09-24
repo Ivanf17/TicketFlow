@@ -7,7 +7,7 @@
     <h1 class="h3 mb-0">Tickets</h1>
     <a class="btn btn-primary btn-sm" href="{% url 'tickets:create' %}">Nuevo ticket</a>
 </div>
-{% if tickets %}
+{% if page_obj %}
 <table class="table table-striped">
     <thead>
         <tr>
@@ -22,7 +22,7 @@
         </tr>
     </thead>
     <tbody>
-        {% for ticket in tickets %}
+        {% for ticket in page_obj %}
         <tr>
             <td><a href="{% url 'tickets:detail' ticket.pk %}">{{ ticket.ticket_number }}</a></td>
             <td>{{ ticket.title }}</td>
@@ -36,6 +36,7 @@
         {% endfor %}
     </tbody>
 </table>
+{% include "partials/pagination.html" %}
 {% else %}
 <p>No hay tickets para mostrar.</p>
 {% endif %}

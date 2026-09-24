@@ -63,4 +63,28 @@
     <li class="list-group-item text-muted">Sin cambios de asignación todavía.</li>
     {% endfor %}
 </ul>
+
+<h2 class="h5 mt-4">Comentarios</h2>
+<ul class="list-group mb-3">
+    {% for comment in ticket.comments.all %}
+    <li class="list-group-item">
+        <div class="small text-muted">
+            {{ comment.author.username }} &mdash; {{ comment.created_at|date:"d/m/Y H:i" }}
+        </div>
+        <div>{{ comment.content|linebreaksbr }}</div>
+    </li>
+    {% empty %}
+    <li class="list-group-item text-muted">Sin comentarios todavía.</li>
+    {% endfor %}
+</ul>
+<form method="post" action="{% url 'tickets:comment_create' ticket.pk %}">
+    {% csrf_token %}
+    <div class="mb-2">
+        {{ comment_form.content }}
+        {% for error in comment_form.content.errors %}
+            <div class="text-danger small">{{ error }}</div>
+        {% endfor %}
+    </div>
+    <button type="submit" class="btn btn-outline-primary btn-sm">Comentar</button>
+</form>
 {% endblock %}

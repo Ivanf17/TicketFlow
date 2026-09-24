@@ -8,7 +8,7 @@
     <a class="btn btn-primary btn-sm" href="{% url 'administration:user_create' %}">Crear usuario</a>
 </div>
 
-{% if users %}
+{% if page_obj %}
 <table class="table table-sm">
     <thead>
         <tr>
@@ -20,7 +20,7 @@
         </tr>
     </thead>
     <tbody>
-        {% for target_user in users %}
+        {% for target_user in page_obj %}
         <tr>
             <td>{{ target_user.username }}</td>
             <td>{{ target_user.get_role_display }}</td>
@@ -37,6 +37,7 @@
         {% endfor %}
     </tbody>
 </table>
+{% include "partials/pagination.html" %}
 {% else %}
 <p class="text-muted">No hay usuarios registrados.</p>
 {% endif %}

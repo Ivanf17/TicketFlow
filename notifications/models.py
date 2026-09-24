@@ -21,6 +21,7 @@ class Notification(models.Model):
         TICKET_ASSIGNED = "TICKET_ASSIGNED", "Ticket asignado"
         TICKET_REASSIGNED = "TICKET_REASSIGNED", "Ticket reasignado"
         TICKET_STATUS_CHANGED = "TICKET_STATUS_CHANGED", "Cambio de estado"
+        TICKET_COMMENT_ADDED = "TICKET_COMMENT_ADDED", "Nuevo comentario"
 
     recipient = models.ForeignKey(
         settings.AUTH_USER_MODEL,

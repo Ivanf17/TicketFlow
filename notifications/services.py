@@ -65,3 +65,26 @@ def notify_ticket_status_changed(ticket, *, recipient):
         title="Estado del ticket actualizado",
         message=message,
     )
+
+
+def notify_ticket_comment_added(ticket, *, author):
+    """A new comment was added to ``ticket`` by ``author``.
+
+    - If the comment's author is the ticket's creator, the currently
+      assigned responsible (if any) is notified.
+    - Otherwise (an area_manager or admin who can see the ticket
+      commenting on it), the ticket's creator is notified.
+    - Never notifies the comment's own author, and creates nothing if
+      there is no valid recipient (e.g. an unassigned ticket commented
+      on by its own creator).
+    """
+    recipient = ticket.assigned_to if author == ticket.created_by else ticket.created_by
+    if recipient is None or recipient == author:
+        return None
+    return create_notification(
+        recipient=recipient,
+        ticket=ticket,
+        notification_type=Notification.NotificationType.TICKET_COMMENT_ADDED,
+        title="Nuevo comentario",
+        message=f"Nuevo comentario en el ticket {ticket.ticket_number}.",
+    )

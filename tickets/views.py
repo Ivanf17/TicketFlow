@@ -1,14 +1,18 @@
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.core.paginator import Paginator
+from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from assignment.permissions import can_manage_ticket_assignment
 from assignment.services import AssignmentError, assign_ticket, auto_assign_ticket
+from notifications.services import notify_ticket_comment_added
 
-from .forms import TicketAssignForm, TicketCreateForm, TicketStatusChangeForm
-from .models import Ticket
+from .forms import TicketAssignForm, TicketCommentForm, TicketCreateForm, TicketStatusChangeForm
+from .models import Ticket, TicketComment
 from .permissions import can_manage_ticket_status, get_visible_tickets
 from .services import StatusTransitionError, change_ticket_status, get_next_status
 
@@ -36,7 +40,8 @@ def ticket_create(request):
 @login_required
 def ticket_list(request):
     tickets = get_visible_tickets(request.user)
-    return render(request, "tickets/ticket_list.html", {"tickets": tickets})
+    page_obj = Paginator(tickets, settings.PAGE_SIZE).get_page(request.GET.get("page"))
+    return render(request, "tickets/ticket_list.html", {"page_obj": page_obj})
 
 
 @login_required
@@ -54,6 +59,7 @@ def ticket_detail(request, pk):
             "can_change_status": can_manage_status and next_status is not None,
             "next_status": next_status,
             "no_status_actions": can_manage_status and next_status is None,
+            "comment_form": TicketCommentForm(),
         },
     )
 
@@ -105,4 +111,24 @@ def ticket_change_status(request, pk):
             messages.success(request, "Ticket status updated.")
     else:
         messages.error(request, "That status change is not allowed.")
+    return redirect("tickets:detail", pk=ticket.pk)
+
+
+@login_required
+@require_POST
+def ticket_comment_create(request, pk):
+    # Same visibility rule as ticket_detail: whoever can see the ticket
+    # can comment on it. RESOLVED tickets are included on purpose -- a
+    # comment is purely informative and never touches status/assignment.
+    ticket = get_object_or_404(get_visible_tickets(request.user), pk=pk)
+    form = TicketCommentForm(request.POST)
+    if form.is_valid():
+        with transaction.atomic():
+            TicketComment.objects.create(
+                ticket=ticket, author=request.user, content=form.cleaned_data["content"]
+            )
+            notify_ticket_comment_added(ticket, author=request.user)
+        messages.success(request, "Comentario agregado.")
+    else:
+        messages.error(request, "El comentario no puede estar vacío.")
     return redirect("tickets:detail", pk=ticket.pk)

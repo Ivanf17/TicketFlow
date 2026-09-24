@@ -1,12 +1,20 @@
 from django.contrib import admin
 
-from .models import Ticket, TicketHistory
+from .models import Ticket, TicketComment, TicketHistory
 
 
 class TicketHistoryInline(admin.TabularInline):
     model = TicketHistory
     extra = 0
     readonly_fields = ("previous_status", "status", "changed_by", "created_at")
+    can_delete = False
+
+
+class TicketCommentInline(admin.TabularInline):
+    model = TicketComment
+    extra = 0
+    readonly_fields = ("author", "content", "created_at")
+    # Comments are append-only: no editing or deleting from here either.
     can_delete = False
 
 
@@ -28,7 +36,7 @@ class TicketAdmin(admin.ModelAdmin):
     # editing the field directly (which would skip transition validation
     # and history logging, and could even "reopen" a RESOLVED ticket).
     readonly_fields = ("ticket_number", "status", "created_at", "updated_at")
-    inlines = [TicketHistoryInline]
+    inlines = [TicketHistoryInline, TicketCommentInline]
 
 
 @admin.register(TicketHistory)
