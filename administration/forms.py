@@ -4,6 +4,7 @@ from django.contrib.auth.forms import UserCreationForm as DjangoUserCreationForm
 from users.models import User
 
 from .models import Area, Category
+from .services import is_last_active_admin
 
 
 class AreaForm(forms.ModelForm):
@@ -48,6 +49,26 @@ class UserAdminForm(forms.ModelForm):
             "role": forms.Select(attrs={"class": "form-select"}),
             "area": forms.Select(attrs={"class": "form-select"}),
         }
+
+    def clean(self):
+        # self.instance still holds the pre-edit field values here:
+        # ModelForm._post_clean() only applies cleaned_data onto the
+        # instance *after* this method returns, so is_last_active_admin
+        # (which reads self.instance.role/is_active) reflects the
+        # current database state, not the submitted one.
+        cleaned_data = super().clean()
+        if "role" in cleaned_data and self.instance.pk and is_last_active_admin(self.instance):
+            stays_active_admin = (
+                cleaned_data["role"] == User.Role.ADMIN and cleaned_data.get("is_active")
+            )
+            if not stays_active_admin:
+                raise forms.ValidationError(
+                    "No es posible quitar el rol de Admin ni desactivar a "
+                    "este usuario: es el único administrador activo del "
+                    "sistema. Activa o creá otro Admin antes de hacer este "
+                    "cambio."
+                )
+        return cleaned_data
 
 
 class UserCreateForm(DjangoUserCreationForm):

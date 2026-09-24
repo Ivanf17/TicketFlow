@@ -12,7 +12,11 @@ from .models import Notification
 def notification_list(request):
     # Scoped to the authenticated user only: there is no way to pass a
     # different user's id here, so this can't be manipulated via the URL.
-    notifications = Notification.objects.filter(recipient=request.user)
+    # select_related("ticket") avoids one extra query per row for the
+    # ticket.pk/ticket_number the template reads on every notification.
+    notifications = Notification.objects.filter(recipient=request.user).select_related(
+        "ticket"
+    )
     page_obj = Paginator(notifications, settings.PAGE_SIZE).get_page(
         request.GET.get("page")
     )

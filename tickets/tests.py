@@ -1,9 +1,12 @@
 from django.core.exceptions import ValidationError
+from django.db import connection
 from django.db.models import ProtectedError
-from django.test import TestCase
+from django.test import Client, TestCase
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from administration.models import Area, Category
+from assignment.services import auto_assign_ticket
 from notifications.models import Notification
 from users.models import User
 
@@ -1043,3 +1046,201 @@ class TicketListPaginationTests(TestCase):
         response = self.client.get(reverse("tickets:list"), {"page": "abc"})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["page_obj"].number, 1)
+
+
+class TicketListQueryCountTests(TestCase):
+    """Block 10: locks in the select_related fix for ticket_list's N+1
+    (category, category.area, created_by, assigned_to were each fetched
+    with a separate query per row before the fix). A single ticket
+    can't reveal an N+1 -- it must be checked against a bigger page too.
+    """
+
+    def setUp(self):
+        self.area = Area.objects.create(name="TI")
+        self.category = Category.objects.create(name="Hardware", area=self.area)
+        self.admin = User.objects.create_user(
+            username="admin1", password="pass12345", role=User.Role.ADMIN,
+        )
+        self.employee = User.objects.create_user(
+            username="empleado", password="pass12345",
+            role=User.Role.EMPLOYEE, area=self.area,
+        )
+        # An Area Manager so every ticket actually gets an assigned_to
+        # (otherwise the assigned_to FK is always NULL and its would-be
+        # per-row query never happens, hiding part of the N+1).
+        User.objects.create_user(
+            username="jefe_ti", password="pass12345",
+            role=User.Role.AREA_MANAGER, area=self.area,
+        )
+        self.client.login(username="admin1", password="pass12345")
+
+    def _create_tickets(self, n):
+        for i in range(n):
+            ticket = Ticket.objects.create_ticket(
+                title=f"Ticket {i}", description="desc",
+                category=self.category, created_by=self.employee,
+            )
+            auto_assign_ticket(ticket)
+
+    def test_query_count_does_not_grow_with_more_tickets(self):
+        self._create_tickets(1)
+        with CaptureQueriesContext(connection) as one_row:
+            self.client.get(reverse("tickets:list"))
+        baseline = len(one_row.captured_queries)
+
+        self._create_tickets(9)  # 10 tickets total
+        with self.assertNumQueries(baseline):
+            self.client.get(reverse("tickets:list"))
+
+
+class InactiveCategoryTicketCreationTests(TestCase):
+    """Block 10: closes the test gap around tickets/forms.py:23
+    (TicketCreateForm restricting `category` to active ones)."""
+
+    def setUp(self):
+        self.area = Area.objects.create(name="TI")
+        self.active_category = Category.objects.create(
+            name="Hardware", area=self.area, is_active=True
+        )
+        self.inactive_category = Category.objects.create(
+            name="Descontinuada", area=self.area, is_active=False
+        )
+        self.employee = User.objects.create_user(
+            username="empleado", password="pass12345",
+            role=User.Role.EMPLOYEE, area=self.area,
+        )
+        self.client.login(username="empleado", password="pass12345")
+
+    def test_inactive_category_not_offered_in_create_form(self):
+        response = self.client.get(reverse("tickets:create"))
+        queryset = response.context["form"].fields["category"].queryset
+        self.assertIn(self.active_category, queryset)
+        self.assertNotIn(self.inactive_category, queryset)
+
+    def test_direct_post_with_inactive_category_id_is_rejected(self):
+        response = self.client.post(
+            reverse("tickets:create"),
+            {
+                "title": "Intento con categoría inactiva",
+                "description": "desc",
+                "category": self.inactive_category.pk,
+            },
+        )
+        self.assertEqual(response.status_code, 200)  # form re-rendered, invalid
+        self.assertFalse(
+            Ticket.objects.filter(title="Intento con categoría inactiva").exists()
+        )
+
+    def test_active_category_is_still_accepted(self):
+        response = self.client.post(
+            reverse("tickets:create"),
+            {
+                "title": "Con categoría activa",
+                "description": "desc",
+                "category": self.active_category.pk,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(Ticket.objects.filter(title="Con categoría activa").exists())
+
+
+class TicketLifecycleAcceptanceTests(TestCase):
+    """Block 10: end-to-end acceptance test. Walks the full ticket
+    lifecycle through the Django test client with one real session per
+    role (not isolated service calls), confirming every piece -- Round
+    Robin, status transitions, notifications, history and the dashboard
+    -- integrates the way an actual user would experience it.
+    """
+
+    def setUp(self):
+        self.area = Area.objects.create(name="TI")
+        self.category = Category.objects.create(name="Hardware", area=self.area)
+        self.employee = User.objects.create_user(
+            username="empleado", password="pass12345",
+            role=User.Role.EMPLOYEE, area=self.area,
+        )
+        self.manager = User.objects.create_user(
+            username="jefe_ti", password="pass12345",
+            role=User.Role.AREA_MANAGER, area=self.area,
+        )
+        self.admin = User.objects.create_user(
+            username="admin1", password="pass12345", role=User.Role.ADMIN,
+        )
+
+    def test_full_ticket_lifecycle_across_roles(self):
+        employee_client = Client()
+        manager_client = Client()
+        admin_client = Client()
+        self.assertTrue(
+            employee_client.login(username="empleado", password="pass12345")
+        )
+        self.assertTrue(
+            manager_client.login(username="jefe_ti", password="pass12345")
+        )
+        self.assertTrue(admin_client.login(username="admin1", password="pass12345"))
+
+        # 1. Employee creates a ticket and sees it in their own list, PENDING.
+        response = employee_client.post(
+            reverse("tickets:create"),
+            {
+                "title": "Impresora no enciende",
+                "description": "La impresora del piso 2 no enciende.",
+                "category": self.category.pk,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        ticket = Ticket.objects.get(title="Impresora no enciende")
+        self.assertEqual(ticket.status, Ticket.Status.PENDING)
+
+        response = employee_client.get(reverse("tickets:list"))
+        self.assertContains(response, ticket.ticket_number)
+        self.assertContains(response, "Pendiente")
+
+        # 2. Round Robin auto-assigned it to the area's only manager.
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.assigned_to, self.manager)
+
+        # 3. The Area Manager sees it in their area and moves it forward.
+        response = manager_client.get(reverse("tickets:list"))
+        self.assertContains(response, ticket.ticket_number)
+
+        response = manager_client.post(
+            reverse("tickets:change_status", args=[ticket.pk]),
+            {"status": Ticket.Status.IN_PROCESS},
+        )
+        self.assertEqual(response.status_code, 302)
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.status, Ticket.Status.IN_PROCESS)
+
+        # 4. The employee is notified and sees it in their own inbox.
+        notification = Notification.objects.get(
+            recipient=self.employee, ticket=ticket,
+            notification_type=Notification.NotificationType.TICKET_STATUS_CHANGED,
+        )
+        response = employee_client.get(reverse("notifications:list"))
+        self.assertContains(response, notification.title)
+
+        # 5. The Area Manager resolves the ticket.
+        response = manager_client.post(
+            reverse("tickets:change_status", args=[ticket.pk]),
+            {"status": Ticket.Status.RESOLVED},
+        )
+        self.assertEqual(response.status_code, 302)
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.status, Ticket.Status.RESOLVED)
+
+        # 6. The employee sees the final status and the full history.
+        response = employee_client.get(reverse("tickets:detail", args=[ticket.pk]))
+        self.assertContains(response, "Resuelto")
+        history = list(TicketHistory.objects.filter(ticket=ticket).order_by("created_at"))
+        self.assertEqual(len(history), 3)  # created + IN_PROCESS + RESOLVED
+        self.assertIsNone(history[0].previous_status)
+        self.assertEqual(history[1].status, Ticket.Status.IN_PROCESS)
+        self.assertEqual(history[2].status, Ticket.Status.RESOLVED)
+
+        # 7. The Admin sees it reflected in the dashboard's metrics.
+        response = admin_client.get(reverse("reports:dashboard"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["total"], 1)
+        self.assertEqual(response.context["resolved"], 1)
+        self.assertContains(response, ticket.ticket_number)

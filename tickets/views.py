@@ -39,7 +39,14 @@ def ticket_create(request):
 
 @login_required
 def ticket_list(request):
-    tickets = get_visible_tickets(request.user)
+    # select_related avoids one extra query per row for each of these
+    # FKs (category, category.area, created_by, assigned_to), all of
+    # which the template reads per ticket. Purely a load-time
+    # optimization: get_visible_tickets' filtering/visibility is
+    # untouched, this only changes how the same rows are fetched.
+    tickets = get_visible_tickets(request.user).select_related(
+        "category", "category__area", "created_by", "assigned_to"
+    )
     page_obj = Paginator(tickets, settings.PAGE_SIZE).get_page(request.GET.get("page"))
     return render(request, "tickets/ticket_list.html", {"page_obj": page_obj})
 

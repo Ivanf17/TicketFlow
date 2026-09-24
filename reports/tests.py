@@ -1,7 +1,8 @@
 import datetime
 
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, connection, transaction
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
@@ -570,3 +571,24 @@ class DashboardManagementRecentTicketsScopeTests(DashboardBaseTestCase):
         self.client.login(username="direccion1", password="pass12345")
         response = self.client.get(reverse("tickets:detail", args=[ticket.pk]))
         self.assertEqual(response.status_code, 404)
+
+
+class DashboardQueryCountTests(DashboardBaseTestCase):
+    """Block 10: locks in the existing select_related on the "recent
+    tickets" query (reports/views.py) as a regression guard -- it was
+    previously verified only by reading the code, not by a test. Checked
+    at 1 row and 10 rows, since a single row can't reveal an N+1.
+    """
+
+    def test_query_count_does_not_grow_with_more_tickets(self):
+        self.client.login(username="admin1", password="pass12345")
+
+        make_ticket(self.category_ti, self.employee, "Uno")
+        with CaptureQueriesContext(connection) as one_row:
+            self.client.get(reverse("reports:dashboard"))
+        baseline = len(one_row.captured_queries)
+
+        for i in range(9):
+            make_ticket(self.category_ti, self.employee, f"Extra {i}")
+        with self.assertNumQueries(baseline):
+            self.client.get(reverse("reports:dashboard"))

@@ -12,6 +12,7 @@ from users.models import User
 from .forms import AreaForm, CategoryForm, UserAdminForm, UserCreateForm
 from .models import Area, Category
 from .permissions import can_access_administration
+from .services import is_last_active_admin
 
 
 def _require_admin(request):
@@ -216,6 +217,17 @@ def user_edit(request, pk):
 def user_delete(request, pk):
     _require_admin(request)
     target_user = get_object_or_404(User, pk=pk)
+    if is_last_active_admin(target_user):
+        # user_delete has no ModelForm to hang validation off of (unlike
+        # user_edit / UserAdminForm.clean()), so the same shared rule is
+        # applied directly here instead.
+        messages.error(
+            request,
+            "No se puede eliminar a este usuario: es el único "
+            "administrador activo del sistema. Activa o creá otro Admin "
+            "antes de eliminarlo.",
+        )
+        return redirect("administration:user_list")
     try:
         target_user.delete()
         messages.success(request, "Usuario eliminado.")

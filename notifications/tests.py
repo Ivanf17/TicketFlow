@@ -1,5 +1,7 @@
 from django.conf import settings
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from administration.models import Area, Category
@@ -285,3 +287,46 @@ class NotificationListPaginationTests(TestCase):
         response = self.client.get(reverse("notifications:list"), {"page": "abc"})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["page_obj"].number, 1)
+
+
+class NotificationListQueryCountTests(TestCase):
+    """Block 10: locks in the select_related("ticket") fix for
+    notification_list's N+1 (the template reads notification.ticket.pk
+    / .ticket_number per row). Checked at 1 row and 10 rows, since a
+    single row can't reveal an N+1.
+    """
+
+    def setUp(self):
+        self.area = Area.objects.create(name="TI")
+        self.category = Category.objects.create(name="Hardware", area=self.area)
+        self.employee = User.objects.create_user(
+            username="empleado", password="pass12345",
+            role=User.Role.EMPLOYEE, area=self.area,
+        )
+        self.manager = User.objects.create_user(
+            username="jefe_ti", password="pass12345",
+            role=User.Role.AREA_MANAGER, area=self.area,
+        )
+        self.ticket = Ticket.objects.create_ticket(
+            title="Impresora rota", description="desc",
+            category=self.category, created_by=self.employee,
+        )
+        self.client.login(username="jefe_ti", password="pass12345")
+
+    def _create_notifications(self, n):
+        for i in range(n):
+            Notification.objects.create(
+                recipient=self.manager, ticket=self.ticket,
+                notification_type=Notification.NotificationType.TICKET_ASSIGNED,
+                title=f"t{i}", message=f"m{i}",
+            )
+
+    def test_query_count_does_not_grow_with_more_notifications(self):
+        self._create_notifications(1)
+        with CaptureQueriesContext(connection) as one_row:
+            self.client.get(reverse("notifications:list"))
+        baseline = len(one_row.captured_queries)
+
+        self._create_notifications(9)  # 10 notifications total
+        with self.assertNumQueries(baseline):
+            self.client.get(reverse("notifications:list"))

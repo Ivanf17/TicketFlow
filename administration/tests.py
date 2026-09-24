@@ -763,3 +763,137 @@ class AdministrationListPaginationTests(TestCase):
         response = self.client.get(reverse("administration:user_list"), {"page": "abc"})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["page_obj"].number, 1)
+
+
+class LastActiveAdminProtectionTests(TestCase):
+    """Block 10: an Admin can never deactivate, change the role of, or
+    delete the system's last remaining active Admin -- including
+    themselves -- since doing so would lock everyone out of
+    /administration/ with no way back in through the UI.
+    """
+
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username="admin1", password="pass12345", role=User.Role.ADMIN,
+        )
+        self.client.login(username="admin1", password="pass12345")
+
+    # --- Editing the last active Admin (self-edit) ----------------------
+
+    def test_last_admin_cannot_deactivate_self(self):
+        response = self.client.post(
+            reverse("administration:user_edit", args=[self.admin.pk]),
+            {"role": User.Role.ADMIN, "area": ""},  # is_active omitted = False
+        )
+        self.assertEqual(response.status_code, 200)  # form re-rendered, invalid
+        self.admin.refresh_from_db()
+        self.assertTrue(self.admin.is_active)
+
+    def test_last_admin_cannot_change_own_role(self):
+        response = self.client.post(
+            reverse("administration:user_edit", args=[self.admin.pk]),
+            {"role": User.Role.MANAGEMENT, "area": "", "is_active": "on"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.admin.refresh_from_db()
+        self.assertEqual(self.admin.role, User.Role.ADMIN)
+
+    def test_last_admin_editing_without_losing_active_admin_status_is_allowed(self):
+        response = self.client.post(
+            reverse("administration:user_edit", args=[self.admin.pk]),
+            {"role": User.Role.ADMIN, "area": "", "is_active": "on"},
+        )
+        self.assertEqual(response.status_code, 302)
+
+    def test_error_message_names_the_reason(self):
+        response = self.client.post(
+            reverse("administration:user_edit", args=[self.admin.pk]),
+            {"role": User.Role.ADMIN, "area": ""},
+        )
+        self.assertContains(response, "único administrador activo")
+
+    # --- Editing/deleting the last active Admin from another account ----
+
+    def test_cannot_deactivate_last_active_admin_via_another_admin(self):
+        second_admin = User.objects.create_user(
+            username="admin2", password="pass12345", role=User.Role.ADMIN,
+        )
+        self.client.logout()
+        self.client.login(username="admin2", password="pass12345")
+        # admin2 is not the last active admin (admin1 also is), so
+        # deactivating admin1 here would leave admin2 as backup -- but we
+        # test the reverse: admin2 deactivates *admin1*, which is fine.
+        response = self.client.post(
+            reverse("administration:user_edit", args=[self.admin.pk]),
+            {"role": User.Role.ADMIN, "area": ""},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.admin.refresh_from_db()
+        self.assertFalse(self.admin.is_active)
+        # Now only admin2 remains active; deactivating admin2 must fail.
+        response = self.client.post(
+            reverse("administration:user_edit", args=[second_admin.pk]),
+            {"role": User.Role.ADMIN, "area": ""},
+        )
+        self.assertEqual(response.status_code, 200)
+        second_admin.refresh_from_db()
+        self.assertTrue(second_admin.is_active)
+
+    def test_cannot_delete_last_active_admin(self):
+        response = self.client.post(
+            reverse("administration:user_delete", args=[self.admin.pk])
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            User.objects.filter(pk=self.admin.pk, is_active=True).exists()
+        )
+
+    def test_can_delete_admin_when_another_active_admin_remains(self):
+        second_admin = User.objects.create_user(
+            username="admin2", password="pass12345", role=User.Role.ADMIN,
+        )
+        response = self.client.post(
+            reverse("administration:user_delete", args=[second_admin.pk])
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(User.objects.filter(pk=second_admin.pk).exists())
+
+    def test_can_change_role_of_admin_when_another_active_admin_remains(self):
+        second_admin = User.objects.create_user(
+            username="admin2", password="pass12345", role=User.Role.ADMIN,
+        )
+        response = self.client.post(
+            reverse("administration:user_edit", args=[second_admin.pk]),
+            {"role": User.Role.MANAGEMENT, "area": "", "is_active": "on"},
+        )
+        self.assertEqual(response.status_code, 302)
+        second_admin.refresh_from_db()
+        self.assertEqual(second_admin.role, User.Role.MANAGEMENT)
+
+    def test_only_active_admins_count_as_a_backup(self):
+        # A second Admin who is already inactive provides no real
+        # backup: deactivating the last *active* Admin must still fail.
+        User.objects.create_user(
+            username="admin_inactivo", password="pass12345",
+            role=User.Role.ADMIN, is_active=False,
+        )
+        response = self.client.post(
+            reverse("administration:user_edit", args=[self.admin.pk]),
+            {"role": User.Role.ADMIN, "area": ""},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.admin.refresh_from_db()
+        self.assertTrue(self.admin.is_active)
+
+    def test_non_admin_last_admin_check_does_not_block_other_users(self):
+        # Sanity check: the guard is specific to the last active Admin,
+        # not to editing/deleting in general.
+        employee = User.objects.create_user(
+            username="empleado", password="pass12345",
+            role=User.Role.EMPLOYEE, area=Area.objects.create(name="TI"),
+        )
+        response = self.client.post(
+            reverse("administration:user_delete", args=[employee.pk])
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(User.objects.filter(pk=employee.pk).exists())
