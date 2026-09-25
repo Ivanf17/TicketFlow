@@ -303,6 +303,55 @@ class TicketPermissionTests(TestCase):
         self.assertEqual(response.status_code, 404)
 
 
+class TicketListCreateButtonVisibilityTests(TestCase):
+    """UI regression guard: ticket_list.html must only offer "Nuevo
+    ticket" to roles that ticket_create actually lets through. Showing
+    it to everyone led area_manager/admin/management into a 403 on
+    click, even though the server-side permission itself was correct.
+    """
+
+    def setUp(self):
+        self.area = Area.objects.create(name="TI")
+        self.employee = User.objects.create_user(
+            username="empleado1", password="pass12345",
+            role=User.Role.EMPLOYEE, area=self.area,
+        )
+        self.area_manager = User.objects.create_user(
+            username="jefe_ti", password="pass12345",
+            role=User.Role.AREA_MANAGER, area=self.area,
+        )
+        self.admin_user = User.objects.create_user(
+            username="admin1", password="pass12345", role=User.Role.ADMIN,
+        )
+        self.management_user = User.objects.create_user(
+            username="direccion1", password="pass12345", role=User.Role.MANAGEMENT,
+        )
+
+    def test_employee_sees_create_button(self):
+        self.client.login(username="empleado1", password="pass12345")
+        response = self.client.get(reverse("tickets:list"))
+        self.assertContains(response, reverse("tickets:create"))
+        self.assertContains(response, "Nuevo ticket")
+
+    def test_area_manager_does_not_see_create_button(self):
+        self.client.login(username="jefe_ti", password="pass12345")
+        response = self.client.get(reverse("tickets:list"))
+        self.assertNotContains(response, reverse("tickets:create"))
+        self.assertNotContains(response, "Nuevo ticket")
+
+    def test_admin_does_not_see_create_button(self):
+        self.client.login(username="admin1", password="pass12345")
+        response = self.client.get(reverse("tickets:list"))
+        self.assertNotContains(response, reverse("tickets:create"))
+        self.assertNotContains(response, "Nuevo ticket")
+
+    def test_management_does_not_see_create_button(self):
+        self.client.login(username="direccion1", password="pass12345")
+        response = self.client.get(reverse("tickets:list"))
+        self.assertNotContains(response, reverse("tickets:create"))
+        self.assertNotContains(response, "Nuevo ticket")
+
+
 class TicketAssignmentViewTests(TestCase):
     """Manual (re)assignment permissions, exercised through the view layer."""
 

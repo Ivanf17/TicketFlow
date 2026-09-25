@@ -5,7 +5,9 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="h3 mb-0">Tickets</h1>
+    {% if user.role == user.Role.EMPLOYEE %}
     <a class="btn btn-primary btn-sm" href="{% url 'tickets:create' %}">Nuevo ticket</a>
+    {% endif %}
 </div>
 {% if page_obj %}
 <table class="table table-striped">
