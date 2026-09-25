@@ -11,6 +11,13 @@ que se asignen a responsables por área, que se notifique a las partes
 involucradas y que se generen reportes básicos de seguimiento. Es un
 proyecto académico pensado para desarrollarse en 13 semanas.
 
+**Estado: proyecto cerrado.** Los 11 bloques de trabajo planificados
+están implementados, probados (264 tests) y documentados. Este archivo
+describe el estado final del sistema, no un estado intermedio. El
+detalle completo de arquitectura, modelo de datos y decisiones técnicas
+vive en `docs/documentacion-tecnica.md`; las limitaciones conocidas, en
+`docs/limitaciones-conocidas.md`.
+
 ## Arquitectura
 
 **Monolítica modular.** Un único proyecto Django dividido en apps
@@ -54,31 +61,47 @@ Ubicadas en la raíz del proyecto, junto al paquete de configuración
   comentarios append-only (`TicketComment`), visibles bajo la misma
   regla de visibilidad del ticket (`tickets.permissions
   .get_visible_tickets`).
-- `assignment/` — asignación de tickets a responsables/áreas.
-  Estructura preparada, sin lógica funcional todavía.
-- `notifications/` — notificaciones a usuarios sobre eventos de
-  tickets. Estructura preparada, sin lógica funcional todavía.
-- `reports/` — reportes y métricas de seguimiento. Estructura
-  preparada, sin lógica funcional todavía.
-- `administration/` — configuración organizacional (por ahora solo el
-  modelo `Area`) y futuras pantallas de administración.
+- `assignment/` — asignación automática de tickets por Round Robin
+  (`assignment.services.pick_next_area_manager`, cursor persistente por
+  área en `AreaAssignmentCursor`) y reasignación manual
+  (`assign_ticket`), ambas con historial append-only
+  (`TicketAssignmentHistory`).
+- `notifications/` — notificaciones internas (bandeja de entrada por
+  usuario, modelo `Notification`) generadas por eventos de
+  `tickets`/`assignment`: asignación, reasignación, cambio de estado y
+  nuevo comentario. Sin email ni push, solo dentro de la aplicación.
+- `reports/` — dashboard con métricas agregadas por rol: conteos por
+  estado, por área, tiempo promedio de resolución y tickets recientes.
+  Management ve solo agregados globales, nunca tickets individuales.
+- `administration/` — gestión organizacional: `Area`, `Category`
+  (siempre asociada a un `Area`) y administración de usuarios (alta,
+  edición de rol/área/estado), todo restringido a `role=admin`. Incluye
+  la protección del último Admin activo del sistema (no puede
+  desactivarse, cambiar de rol, ni eliminarse si es el único admin
+  activo que queda).
 
-Cada módulo debe mantener sus propios `models.py`, `views.py`,
-`urls.py`, `admin.py` y `migrations/`. Las urls de cada app se incluyen
-desde `ticketflow/urls.py` únicamente cuando el módulo tenga
-funcionalidad real que exponer.
+Cada módulo mantiene sus propios `models.py`, `views.py`, `urls.py`,
+`admin.py` y `migrations/`; la lógica de negocio no trivial vive en un
+`services.py` por app (`tickets`, `assignment`, `notifications`,
+`administration`), separada de las vistas. Las urls de cada app se
+incluyen desde `ticketflow/urls.py` — todas las apps ya tienen
+funcionalidad real y están registradas.
 
 ## Reglas principales del sistema
 
 - No se implementa lógica de negocio de un módulo antes de que se
   autorice explícitamente ese bloque de trabajo.
 - Los roles de usuario (`employee`, `area_manager`, `admin`,
-  `management`) se definen en `users.User.Role`, pero los permisos
-  funcionales asociados a cada rol se implementan progresivamente,
-  módulo por módulo.
-- Todo usuario puede estar asociado a un `Area` (`users.User.area`),
-  relación que módulos futuros (asignación, reportes) usarán para
-  filtrar/enrutar tickets.
+  `management`) se definen en `users.User.Role`. Los permisos
+  funcionales de cada rol están completamente implementados y
+  verificados server-side (nunca solo ocultos en el template); la
+  matriz de permisos real está documentada en
+  `docs/documentacion-tecnica.md`.
+- Todo usuario puede estar asociado a un `Area` (`users.User.area`);
+  `employee` y `area_manager` la requieren siempre (constraint a nivel
+  de base de datos), `admin` y `management` pueden no tenerla. Esa
+  relación es la que usan `assignment` y `reports` para filtrar/enrutar
+  tickets.
 - La autenticación es siempre por sesión de Django. No se agregan
   mecanismos de autenticación alternativos sin decisión explícita.
 - PostgreSQL es la única base de datos soportada, en todos los
@@ -110,9 +133,15 @@ funcionalidad real que exponer.
 4. Crear la base de datos y el usuario en PostgreSQL si no existen
    (deben coincidir con los valores puestos en `.env`).
 5. Aplicar migraciones: `python manage.py migrate`
-6. (Opcional) Crear un superusuario: `python manage.py createsuperuser`
+6. Crear un superusuario (primer Admin del sistema):
+   `python manage.py createsuperuser`
 7. Levantar el servidor de desarrollo: `python manage.py runserver`
 8. Abrir `http://127.0.0.1:8000/` en el navegador.
+
+Guía completa, con solución de problemas comunes, en
+`docs/instalacion.md`. Para cargar datos de ejemplo (útiles para
+desarrollo o demostración): `python manage.py seed_demo` (ver
+`docs/demostracion.md` para las credenciales que genera).
 
 ## Cómo ejecutar las pruebas
 
@@ -120,10 +149,14 @@ funcionalidad real que exponer.
 python manage.py test
 ```
 
-Cada módulo debe incluir sus propias pruebas en `<app>/tests.py` (o un
-paquete `tests/`) a medida que se implementa su funcionalidad. En este
-primer bloque no existen pruebas todavía porque no hay lógica de
-negocio que probar.
+Cada módulo mantiene sus propias pruebas en `<app>/tests.py`. El
+proyecto tiene 264 tests automatizados: modelos, permisos (positivos y
+negativos, por rol), la máquina de estados, Round Robin, notificaciones,
+paginación, consultas N+1 (`assertNumQueries`) y un test de aceptación
+end-to-end que recorre el ciclo de vida completo de un ticket a través
+de `self.client` con sesiones reales por rol. El checklist de pruebas
+manuales de interfaz (lo que la suite automatizada no cubre) está en
+`docs/pruebas-manuales.md`.
 
 ## Reglas para futuros cambios
 

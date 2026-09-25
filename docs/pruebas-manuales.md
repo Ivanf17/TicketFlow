@@ -9,6 +9,17 @@ Cómo usar este documento: para cada fila, ejecutar los pasos con el rol
 indicado, comparar contra el resultado esperado y marcar la casilla de
 resultado real (`[ ] OK` / `[ ] Falla`, con una nota si falla).
 
+> **Nota sobre la sección 5 (Comentarios):** los comentarios en tickets
+> (`tickets.TicketComment`) son una **funcionalidad adicional** al
+> alcance formal aprobado (Enunciado del Alcance, 25/08/2026),
+> implementada en el Bloque 9. Son asíncronos, no un chat en vivo, y no
+> modifican ni reemplazan la exclusión formal de "chat en vivo entre
+> empleado y encargado" (ver `docs/casos-de-uso.md`, sección 2, para la
+> distinción completa). Se mantiene esta sección del checklist porque la
+> funcionalidad existe, está probada (`tickets/tests.py`, clases
+> `TicketCommentTests`/`TicketCommentNotificationTests`) y es parte del
+> sistema entregado.
+
 ## 1. Autenticación
 
 | # | Flujo | Rol | Pasos | Resultado esperado | Resultado real |
