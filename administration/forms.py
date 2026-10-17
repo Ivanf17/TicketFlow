@@ -2,6 +2,7 @@ from django import forms
 from django.contrib.auth.forms import UserCreationForm as DjangoUserCreationForm
 
 from users.models import User
+from users.presentation import spanish_role_choices
 
 from .models import Area, Category
 from .services import is_last_active_admin
@@ -49,6 +50,11 @@ class UserAdminForm(forms.ModelForm):
             "role": forms.Select(attrs={"class": "form-select"}),
             "area": forms.Select(attrs={"class": "form-select"}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Display-only: same valid values, Spanish option labels.
+        spanish_role_choices(self.fields["role"])
 
     def clean(self):
         # self.instance still holds the pre-edit field values here:
@@ -103,3 +109,8 @@ class UserCreateForm(DjangoUserCreationForm):
             "role": forms.Select(attrs={"class": "form-select"}),
             "area": forms.Select(attrs={"class": "form-select"}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Display-only: same valid values, Spanish option labels.
+        spanish_role_choices(self.fields["role"])

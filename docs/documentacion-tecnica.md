@@ -99,6 +99,55 @@ Patrón consistente en todas las apps con lógica de negocio:
 - **`views.py`** — orquesta: llama a `permissions`, arma el `form`,
   invoca `services`, renderiza. No contiene reglas de negocio propias.
 
+### Capa de presentación (interfaz)
+
+La interfaz sigue el sistema visual exportado desde Google Stitch
+(`docs/diseno-referencia.md`: azul marino/índigo, turquesa,
+ámbar, tipografía Inter, tarjetas de 12 px de radio) implementado
+**sobre Bootstrap 5.3.3**, sin Tailwind ni pasos de compilación:
+
+- **`static/css/ticketflow.css`** — tokens de diseño en variables CSS
+  (`--tf-*`) que además sobrescriben las variables de Bootstrap
+  (`--bs-*`), y un conjunto pequeño de componentes `tf-*`: layout con
+  menú lateral (260 px; rail de iconos de 72 px entre 992 y 1279 px;
+  panel deslizable `offcanvas-lg` por debajo de 992 px), barra superior,
+  tarjetas de métricas, badges de estado, tablas que en móvil se apilan
+  como tarjetas, filtros segmentados, línea de tiempo, stepper del flujo
+  lineal, barras y donut del dashboard, páginas de autenticación y de
+  error.
+- **`static/js/ticketflow.js`** — solo mejoras progresivas: mostrar/ocultar
+  contraseña, confirmación antes de eliminar, vista previa del área de
+  destino al elegir categoría y atajo de teclado del buscador. Ninguna
+  regla de negocio vive en JavaScript.
+- **`templates/base.html` + `templates/partials/`** — una única plantilla
+  base: con sesión iniciada renderiza el portal (menú lateral por rol,
+  barra superior con buscador, desplegable de notificaciones y menú de
+  cuenta); sin sesión, el layout centrado de autenticación. Parciales
+  reutilizables: `sidebar`, `topbar`, `messages`, `pagination` (conserva
+  los filtros activos), `status_badge`, `form_field`, `form_errors`,
+  `admin_tabs`, `admin_header`, `notification_icon`. Páginas de error
+  `403.html`, `404.html` y `500.html` (esta última autónoma).
+- **`ticketflow/templatetags/ui.py`** (biblioteca `ui`, registrada en
+  `TEMPLATES["OPTIONS"]["libraries"]`) — filtros de presentación:
+  `ui_field` (clases de Bootstrap e `is-invalid` según el widget y los
+  errores del servidor), `role_label`/`es_label` (etiquetas en español a
+  partir de `users/presentation.py`, sin tocar los `choices` del modelo,
+  para no generar migraciones), `initials`, `display_name`, `age` y la
+  etiqueta `query_replace` para la paginación con filtros.
+- **Iconos y tipografía:** Inter y un subconjunto de Material Symbols
+  Outlined desde Google Fonts (la lista `icon_names` de `base.html` debe
+  ampliarse si una plantilla usa un icono nuevo).
+
+Los cambios de vistas asociados al rediseño son solo de lectura y
+siempre parten del queryset ya filtrado por rol: filtros opcionales
+(`status`, `assignment`, `q`) y conteos por estado en `ticket_list`;
+pasos del flujo lineal calculados desde `TicketHistory` en
+`ticket_detail`; conteos del panel en `administration_home`; pestañas
+por tipo/no leídas en `notification_list`; y un parámetro `next`
+validado con `url_has_allowed_host_and_scheme` en las acciones de
+marcar notificaciones como leídas (no hay redirección abierta). Los
+valores desconocidos de cualquier filtro se ignoran.
+
 ## 4.2 Modelo de datos
 
 ### Entidades y atributos principales
@@ -447,3 +496,4 @@ filtros de fecha/área de la request:
 | **Round Robin como regla de asignación** | Asignación manual siempre; o por carga actual (menor cantidad de tickets abiertos). | Manual siempre no escala con el volumen esperado y depende de que alguien esté disponible para asignar. Por carga actual es más "justo" en teoría, pero requiere recalcular sobre todo el historial en cada asignación y es más difícil de razonar/testear que un cursor. | Un cursor persistente por área da una distribución predecible, testeable de forma determinística, y no se ve afectado por reasignaciones manuales posteriores. |
 | **No construir una API (Bloque 9)** | Exponer una API REST (Django REST Framework) para desacoplar un futuro cliente móvil o integración externa. | Ningún requisito del proyecto pide un consumidor externo; agregarla habría sido la definición misma de scope creep contra la prioridad de Tiempo, y contra la regla explícita del proyecto de no introducir infraestructura no justificada. | Se evaluó explícitamente en el precheck del Bloque 9 y se descartó: cero señales de necesidad real. |
 | **Protección del último Admin en servicio/formulario, no en `CheckConstraint`** | Una restricción de base de datos que impida dejar la tabla `users_user` sin ningún `role=admin, is_active=True`. | Un `CheckConstraint` de PostgreSQL solo evalúa la fila que se está escribiendo; no puede expresar "y ninguna otra fila de esta tabla cumple tal condición". No es la herramienta adecuada para una regla que depende del estado agregado de la tabla. | `administration.services.is_last_active_admin` centraliza el conteo una sola vez, y se invoca tanto desde `UserAdminForm.clean()` (edición) como desde la vista `user_delete` (que no tiene formulario) — la regla vive en un solo lugar, aplicada en los dos puntos donde puede violarse. |
+| **Gráficos del dashboard renderizados en el servidor (CSS) en vez de Chart.js** | Mantener Chart.js vía CDN (implementación original del Bloque 7). | Una librería JS adicional para dos gráficos simples; los valores solo existían dentro de un `<canvas>`, sin texto accesible. | Barras horizontales y un donut (`conic-gradient`) calculados en la plantilla con los mismos datos de la vista: sin dependencia extra, legibles por lectores de pantalla y fieles al diseño de Stitch. |

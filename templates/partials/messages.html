@@ -1,0 +1,11 @@
+{% if messages %}
+<div class="tf-messages">
+    {% for message in messages %}
+    <div class="tf-alert tf-alert--{{ message.tags|default:'info' }} alert fade show" role="{% if message.tags == 'error' %}alert{% else %}status{% endif %}">
+        <span class="tf-icon" aria-hidden="true">{% if message.tags == 'success' %}check_circle{% elif message.tags == 'error' %}error{% elif message.tags == 'warning' %}warning{% else %}info{% endif %}</span>
+        <span class="tf-alert__text">{{ message }}</span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar mensaje"></button>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

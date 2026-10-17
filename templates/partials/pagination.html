@@ -1,19 +1,26 @@
-{% if page_obj.has_other_pages %}
-<nav aria-label="Paginación">
-    <ul class="pagination pagination-sm">
-        {% if page_obj.has_previous %}
-        <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a></li>
-        {% else %}
-        <li class="page-item disabled"><span class="page-link">Anterior</span></li>
-        {% endif %}
-        <li class="page-item disabled">
-            <span class="page-link">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
-        </li>
-        {% if page_obj.has_next %}
-        <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Siguiente</a></li>
-        {% else %}
-        <li class="page-item disabled"><span class="page-link">Siguiente</span></li>
-        {% endif %}
-    </ul>
-</nav>
-{% endif %}
+{% load ui %}
+{# Shared pagination. Keeps any active filters (status, q, area, ...) in the page links. #}
+<div class="tf-pagination">
+    <span class="tf-pagination__summary tnum">
+        {% if page_obj.paginator.count %}Mostrando {{ page_obj.start_index }}–{{ page_obj.end_index }} de {{ page_obj.paginator.count }}{% else %}Sin resultados{% endif %}
+    </span>
+    {% if page_obj.has_other_pages %}
+    <nav aria-label="Paginación">
+        <ul class="pagination pagination-sm">
+            {% if page_obj.has_previous %}
+            <li class="page-item"><a class="page-link" href="{% query_replace page=page_obj.previous_page_number %}">Anterior</a></li>
+            {% else %}
+            <li class="page-item disabled"><span class="page-link">Anterior</span></li>
+            {% endif %}
+            <li class="page-item active" aria-current="page">
+                <span class="page-link">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+            </li>
+            {% if page_obj.has_next %}
+            <li class="page-item"><a class="page-link" href="{% query_replace page=page_obj.next_page_number %}">Siguiente</a></li>
+            {% else %}
+            <li class="page-item disabled"><span class="page-link">Siguiente</span></li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>

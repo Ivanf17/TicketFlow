@@ -1,24 +1,50 @@
 {% extends "base.html" %}
+{% load ui %}
 
 {% block title %}Asignar {{ ticket.ticket_number }} - TicketFlow{% endblock %}
 
 {% block content %}
-<h1 class="h3 mb-1">Asignar {{ ticket.ticket_number }}</h1>
-<p class="text-muted">{{ ticket.title }} &middot; {{ ticket.category.name }} ({{ ticket.area.name }})</p>
-<p>Responsable actual: {{ ticket.assigned_to.username|default:"Sin asignar" }}</p>
+<div class="mx-auto" style="max-width: 720px">
+    <nav aria-label="Ruta de navegación">
+        <ol class="breadcrumb tf-breadcrumb mb-3">
+            <li class="breadcrumb-item"><a href="{% url 'home' %}">Inicio</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'tickets:list' %}">Tickets</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'tickets:detail' ticket.pk %}">#{{ ticket.ticket_number }}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{% if ticket.assigned_to %}Reasignar{% else %}Asignar{% endif %}</li>
+        </ol>
+    </nav>
 
-<form method="post" novalidate>
-    {% csrf_token %}
-    {% for field in form %}
-        <div class="mb-3">
-            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-            {{ field }}
-            {% for error in field.errors %}
-                <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
+    <section class="tf-card">
+        <div class="tf-card__header">
+            <div class="d-flex align-items-center gap-3">
+                <span class="tf-icon-tile"><span class="tf-icon" aria-hidden="true">manage_accounts</span></span>
+                <div>
+                    <h1 class="tf-h-md">{% if ticket.assigned_to %}Reasignar{% else %}Asignar{% endif %} {{ ticket.ticket_number }}</h1>
+                    <p class="tf-card__subtitle">{{ ticket.title }} · {{ ticket.category.name }} ({{ ticket.area.name }})</p>
+                </div>
+            </div>
         </div>
-    {% endfor %}
-    <button type="submit" class="btn btn-primary">Guardar asignación</button>
-    <a class="btn btn-outline-secondary" href="{% url 'tickets:detail' ticket.pk %}">Cancelar</a>
-</form>
+        <div class="tf-card__body">
+            <ul class="tf-spec mb-3">
+                <li><span class="tf-spec__key">Responsable actual</span><span class="tf-spec__val">{{ ticket.assigned_to.username|default:"Sin asignar" }}</span></li>
+                <li><span class="tf-spec__key">Estado</span><span class="tf-spec__val">{% include "partials/status_badge.html" with status=ticket.status label=ticket.get_status_display %}</span></li>
+            </ul>
+            <div class="tf-callout mb-4">
+                <span class="tf-icon" aria-hidden="true">info</span>
+                <p><strong>Regla de asignación:</strong> solo se pueden elegir encargados de área activos de {{ ticket.area.name }}. El cambio queda registrado en el historial de asignación y se notifica al nuevo responsable.</p>
+            </div>
+            {% include "partials/form_errors.html" %}
+            <form method="post" novalidate>
+                {% csrf_token %}
+                {% for field in form %}
+                    {% include "partials/form_field.html" %}
+                {% endfor %}
+                <div class="tf-form-actions">
+                    <a class="btn btn-outline" href="{% url 'tickets:detail' ticket.pk %}">Cancelar</a>
+                    <button type="submit" class="btn btn-primary"><span class="tf-icon" aria-hidden="true">how_to_reg</span>Guardar asignación</button>
+                </div>
+            </form>
+        </div>
+    </section>
+</div>
 {% endblock %}

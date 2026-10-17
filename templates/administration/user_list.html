@@ -1,44 +1,62 @@
 {% extends "base.html" %}
+{% load ui %}
 
 {% block title %}Usuarios - Administración{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h3 mb-0">Usuarios</h1>
-    <a class="btn btn-primary btn-sm" href="{% url 'administration:user_create' %}">Crear usuario</a>
-</div>
+{% include "partials/admin_header.html" with title="Usuarios" crumb="Usuarios" lead="Colaboradores con acceso al portal: rol, área y estado." %}
+{% include "partials/admin_tabs.html" %}
 
-{% if page_obj %}
-<table class="table table-sm">
-    <thead>
-        <tr>
-            <th>Usuario</th>
-            <th>Rol</th>
-            <th>Área</th>
-            <th>Activo</th>
-            <th></th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for target_user in page_obj %}
-        <tr>
-            <td>{{ target_user.username }}</td>
-            <td>{{ target_user.get_role_display }}</td>
-            <td>{{ target_user.area.name|default:"—" }}</td>
-            <td>{% if target_user.is_active %}Sí{% else %}No{% endif %}</td>
-            <td class="text-end">
-                <a class="btn btn-outline-secondary btn-sm" href="{% url 'administration:user_edit' target_user.pk %}">Editar</a>
-                <form method="post" action="{% url 'administration:user_delete' target_user.pk %}" class="d-inline">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-outline-danger btn-sm">Eliminar</button>
-                </form>
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-{% include "partials/pagination.html" %}
-{% else %}
-<p class="text-muted">No hay usuarios registrados.</p>
-{% endif %}
+<section class="tf-card">
+    <div class="tf-card__header">
+        <h2 class="tf-card__title">Colaboradores <span class="tf-chip tf-chip--count">{{ page_obj.paginator.count }}</span></h2>
+        <a class="btn btn-primary btn-sm" href="{% url 'administration:user_create' %}"><span class="tf-icon tf-icon--sm" aria-hidden="true">person_add</span>Crear usuario</a>
+    </div>
+    {% if page_obj %}
+    <div class="tf-table-wrap">
+        <table class="tf-table tf-table--stack">
+            <thead>
+                <tr>
+                    <th scope="col">Usuario</th>
+                    <th scope="col">Rol</th>
+                    <th scope="col">Área</th>
+                    <th scope="col">Estado</th>
+                    <th scope="col" class="text-end">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for target_user in page_obj %}
+                <tr class="{% if not target_user.is_active %}is-muted{% endif %}">
+                    <td class="tf-cell-primary" data-label="Usuario">
+                        <div class="tf-person">
+                            <span class="tf-avatar tf-avatar--soft" aria-hidden="true">{{ target_user|initials }}</span>
+                            <div style="min-width:0">
+                                <span class="tf-person__name">{{ target_user.username }}</span>
+                                <span class="tf-person__meta tf-truncate">{% if target_user.get_full_name %}{{ target_user.get_full_name }} · {% endif %}{{ target_user.email|default:"Sin correo" }}</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td data-label="Rol"><span class="tf-chip tf-chip--role tf-chip--role-{{ target_user.role }}">{{ target_user.role|role_label }}</span></td>
+                    <td data-label="Área">{{ target_user.area.name|default:"—" }}</td>
+                    <td data-label="Estado">{% if target_user.is_active %}<span class="tf-status tf-status--active">Activo</span>{% else %}<span class="tf-status tf-status--neutral">Inactivo</span>{% endif %}</td>
+                    <td data-label="" class="tf-table__actions">
+                        <a class="btn btn-ghost btn-sm" href="{% url 'administration:user_edit' target_user.pk %}"><span class="tf-icon tf-icon--sm" aria-hidden="true">edit</span>Editar<span class="visually-hidden"> {{ target_user.username }}</span></a>
+                        <form method="post" action="{% url 'administration:user_delete' target_user.pk %}" data-confirm="¿Eliminar al usuario «{{ target_user.username }}»? Si tiene historial asociado no podrá eliminarse; en ese caso desactívalo.">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-ghost-danger btn-sm"><span class="tf-icon tf-icon--sm" aria-hidden="true">delete</span>Eliminar<span class="visually-hidden"> {{ target_user.username }}</span></button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="tf-card__footer">{% include "partials/pagination.html" %}</div>
+    {% else %}
+    <div class="tf-empty">
+        <span class="tf-empty__icon"><span class="tf-icon" aria-hidden="true">group_off</span></span>
+        <p class="tf-empty__title">No hay usuarios registrados.</p>
+    </div>
+    {% endif %}
+</section>
 {% endblock %}

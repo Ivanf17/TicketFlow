@@ -1,45 +1,231 @@
 {% extends "base.html" %}
+{% load ui %}
 
-{% block title %}Tickets - TicketFlow{% endblock %}
+{% block title %}{% if user.role == user.Role.EMPLOYEE %}Mis solicitudes{% elif user.role == user.Role.AREA_MANAGER %}Tickets de mi área{% else %}Tickets{% endif %} - TicketFlow{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h3 mb-0">Tickets</h1>
+<div class="tf-page-header">
+    <div class="tf-page-header__text">
+        <nav aria-label="Ruta de navegación">
+            <ol class="breadcrumb tf-breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'home' %}">Inicio</a></li>
+                <li class="breadcrumb-item active" aria-current="page">{% if user.role == user.Role.EMPLOYEE %}Mis solicitudes{% elif user.role == user.Role.AREA_MANAGER %}Bandeja del área{% else %}Tickets{% endif %}</li>
+            </ol>
+        </nav>
+        {% if user.role == user.Role.EMPLOYEE %}
+        <h1 class="tf-h-xl">Mis solicitudes</h1>
+        <p class="tf-page-header__lead">Consulta el estado de tus solicitudes y sigue su avance hasta la resolución.</p>
+        {% elif user.role == user.Role.AREA_MANAGER %}
+        <h1 class="tf-h-xl">Tickets de mi área ({{ user.area.name }})</h1>
+        <p class="tf-page-header__lead">Gestión, asignación y seguimiento de las solicitudes que llegan a tu área.</p>
+        {% elif user.role == user.Role.ADMIN %}
+        <h1 class="tf-h-xl">Todos los tickets</h1>
+        <p class="tf-page-header__lead">Vista global de las solicitudes de todas las áreas.</p>
+        {% else %}
+        <h1 class="tf-h-xl">Tickets</h1>
+        {% endif %}
+    </div>
     {% if user.role == user.Role.EMPLOYEE %}
-    <a class="btn btn-primary btn-sm" href="{% url 'tickets:create' %}">Nuevo ticket</a>
+    <div class="tf-page-header__actions">
+        <a class="btn btn-primary" href="{% url 'tickets:create' %}"><span class="tf-icon" aria-hidden="true">add</span>Nuevo ticket</a>
+    </div>
     {% endif %}
 </div>
-{% if page_obj %}
-<table class="table table-striped">
-    <thead>
-        <tr>
-            <th>N&deg;</th>
-            <th>T&iacute;tulo</th>
-            <th>Categor&iacute;a</th>
-            <th>&Aacute;rea</th>
-            <th>Estado</th>
-            <th>Creado por</th>
-            <th>Asignado a</th>
-            <th>Creado</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for ticket in page_obj %}
-        <tr>
-            <td><a href="{% url 'tickets:detail' ticket.pk %}">{{ ticket.ticket_number }}</a></td>
-            <td>{{ ticket.title }}</td>
-            <td>{{ ticket.category.name }}</td>
-            <td>{{ ticket.area.name }}</td>
-            <td>{{ ticket.get_status_display }}</td>
-            <td>{{ ticket.created_by.username }}</td>
-            <td>{{ ticket.assigned_to.username|default:"—" }}</td>
-            <td>{{ ticket.created_at|date:"d/m/Y H:i" }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-{% include "partials/pagination.html" %}
-{% else %}
-<p>No hay tickets para mostrar.</p>
-{% endif %}
+
+{# --- Metric cards: real counts over every ticket this role can see; each one is a working filter. --- #}
+<div class="row tf-gap-grid mb-4">
+    {% if user.role == user.Role.AREA_MANAGER %}
+    <div class="col-12 col-sm-6 col-xl-3">
+        <a class="tf-metric" href="?status={{ open_status_filter }}"{% if status_filter == open_status_filter %} aria-current="true"{% endif %}>
+            <div>
+                <p class="tf-metric__label">Mis tickets</p>
+                <div class="tf-metric__value">{{ count_open }}<span class="tf-metric__unit">ticket{{ count_open|pluralize }}</span></div>
+                <div class="tf-metric__foot">Pendientes y en proceso</div>
+            </div>
+            <span class="tf-icon-tile"><span class="tf-icon" aria-hidden="true">assignment_ind</span></span>
+        </a>
+    </div>
+    {% elif user.role == user.Role.ADMIN %}
+    <div class="col-12 col-sm-6 col-xl-3">
+        <a class="tf-metric tf-metric--alert" href="?assignment=unassigned&amp;status=PENDING">
+            <div>
+                <p class="tf-metric__label">Pendientes sin asignar</p>
+                <div class="tf-metric__value">{{ count_unassigned_pending }}<span class="tf-metric__unit">ticket{{ count_unassigned_pending|pluralize }}</span></div>
+                <div class="tf-metric__foot">{% if count_unassigned_pending %}Requieren asignación · Ver cola{% else %}Sin pendientes de asignar{% endif %}</div>
+            </div>
+            <span class="tf-icon-tile tf-icon-tile--amber"><span class="tf-icon" aria-hidden="true">assignment_late</span></span>
+        </a>
+    </div>
+    {% else %}
+    <div class="col-12 col-sm-6 col-xl-3">
+        <a class="tf-metric" href="{% url 'tickets:list' %}">
+            <div>
+                <p class="tf-metric__label">Total solicitadas</p>
+                <div class="tf-metric__value">{{ count_total }}<span class="tf-metric__unit">registro{{ count_total|pluralize }}</span></div>
+            </div>
+            <span class="tf-icon-tile"><span class="tf-icon" aria-hidden="true">assignment</span></span>
+        </a>
+    </div>
+    {% endif %}
+    <div class="col-12 col-sm-6 col-xl-3">
+        <a class="tf-metric tf-metric--progress" href="?status=IN_PROCESS">
+            <div>
+                <p class="tf-metric__label"><span class="tf-metric__dot" aria-hidden="true"></span>En proceso</p>
+                <div class="tf-metric__value">{{ count_in_process }}<span class="tf-metric__unit">en atención</span></div>
+            </div>
+            <span class="tf-icon-tile tf-icon-tile--blue"><span class="tf-icon" aria-hidden="true">pending_actions</span></span>
+        </a>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <a class="tf-metric tf-metric--pending" href="?status=PENDING">
+            <div>
+                <p class="tf-metric__label"><span class="tf-metric__dot" aria-hidden="true"></span>Pendientes</p>
+                <div class="tf-metric__value">{{ count_pending }}<span class="tf-metric__unit">por iniciar</span></div>
+            </div>
+            <span class="tf-icon-tile tf-icon-tile--amber"><span class="tf-icon" aria-hidden="true">schedule</span></span>
+        </a>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <a class="tf-metric tf-metric--resolved" href="?status=RESOLVED">
+            <div>
+                <p class="tf-metric__label"><span class="tf-metric__dot" aria-hidden="true"></span>Resueltos</p>
+                <div class="tf-metric__value">{{ count_resolved }}<span class="tf-metric__unit">completado{{ count_resolved|pluralize }}</span></div>
+            </div>
+            <span class="tf-icon-tile tf-icon-tile--green"><span class="tf-icon" aria-hidden="true">task_alt</span></span>
+        </a>
+    </div>
+</div>
+
+{# --- Filters (GET, validated server-side) --- #}
+<section class="tf-card mb-4" aria-label="Filtros">
+    <div class="tf-filters">
+        <div class="tf-filters__group">
+            <span class="tf-filters__label" id="tf-filter-status">Estado</span>
+            <div class="tf-segmented" role="group" aria-labelledby="tf-filter-status">
+                <a href="{% query_replace status='' page='' %}"{% if not status_filter %} aria-current="true"{% endif %}>Todos</a>
+                {% for value, label in status_choices %}
+                <a href="{% query_replace status=value page='' %}"{% if status_filter == value %} aria-current="true"{% endif %}>{{ label }}</a>
+                {% endfor %}
+                {% if user.role == user.Role.AREA_MANAGER %}
+                <a href="{% query_replace status=open_status_filter page='' %}"{% if status_filter == open_status_filter %} aria-current="true"{% endif %}>Sin resolver</a>
+                {% endif %}
+            </div>
+        </div>
+        {# Assignment is automatic (Round Robin), so this diagnostic filter is only offered to Admin; ?assignment= still works server-side for any role. #}
+        {% if user.role == user.Role.ADMIN %}
+        <div class="tf-filters__group">
+            <span class="tf-filters__label" id="tf-filter-assignment">Asignación</span>
+            <div class="tf-segmented" role="group" aria-labelledby="tf-filter-assignment">
+                <a href="{% query_replace assignment='' page='' %}"{% if not assignment_filter %} aria-current="true"{% endif %}>Todos</a>
+                <a class="is-warning" href="{% query_replace assignment='unassigned' page='' %}"{% if assignment_filter == 'unassigned' %} aria-current="true"{% endif %}>Sin asignar</a>
+                <a href="{% query_replace assignment='assigned' page='' %}"{% if assignment_filter == 'assigned' %} aria-current="true"{% endif %}>Asignados</a>
+            </div>
+        </div>
+        {% endif %}
+        <form method="get" class="tf-filters__group tf-filters__grow" role="search">
+            {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+            {% if assignment_filter %}<input type="hidden" name="assignment" value="{{ assignment_filter }}">{% endif %}
+            <label for="tf-list-search">Buscar</label>
+            <div class="d-flex gap-2">
+                <div class="tf-input-icon flex-grow-1">
+                    <span class="tf-icon" aria-hidden="true">filter_list</span>
+                    <input class="form-control" id="tf-list-search" type="search" name="q" value="{{ search }}" placeholder="N° de ticket o título…">
+                </div>
+                <button type="submit" class="btn btn-outline">Buscar</button>
+            </div>
+        </form>
+        {% if filters_active %}
+        <div class="tf-filters__end">
+            <a class="btn btn-ghost" href="{% url 'tickets:list' %}"><span class="tf-icon" aria-hidden="true">restart_alt</span>Limpiar filtros</a>
+        </div>
+        {% endif %}
+    </div>
+</section>
+
+{# --- Ticket table --- #}
+<section class="tf-card">
+    <div class="tf-card__header">
+        <h2 class="tf-card__title">
+            {% if user.role == user.Role.EMPLOYEE %}Solicitudes registradas{% elif user.role == user.Role.AREA_MANAGER %}Tickets asignados a {{ user.area.name }}{% else %}Listado de tickets{% endif %}
+            <span class="tf-chip tf-chip--count">{{ page_obj.paginator.count }} resultado{{ page_obj.paginator.count|pluralize }}</span>
+        </h2>
+        <span class="tf-muted small">Ordenado por fecha de creación (más recientes primero)</span>
+    </div>
+    {% if page_obj %}
+    <div class="tf-table-wrap">
+        <table class="tf-table tf-table--stack">
+            <thead>
+                <tr>
+                    <th scope="col">N&deg;</th>
+                    {% if user.role != user.Role.EMPLOYEE %}<th scope="col">Solicitante</th>{% endif %}
+                    {% if user.role == user.Role.EMPLOYEE %}<th scope="col">Asunto</th>
+                    <th scope="col">Categor&iacute;a</th>{% else %}<th scope="col">Categor&iacute;a / Asunto</th>{% endif %}
+                    {% if user.role != user.Role.AREA_MANAGER %}<th scope="col">&Aacute;rea</th>{% endif %}
+                    {% if user.role == user.Role.EMPLOYEE %}<th scope="col">Creado</th>{% else %}<th scope="col">Antigüedad</th><th scope="col">Asignado a</th>{% endif %}
+                    <th scope="col">Estado</th>
+                    <th scope="col"><span class="visually-hidden">Acciones</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ticket in page_obj %}
+                <tr class="{% if user.role != user.Role.EMPLOYEE and not ticket.assigned_to and ticket.status == 'PENDING' %}is-attention{% endif %}">
+                    <td data-label="N°"><a class="tf-id" href="{% url 'tickets:detail' ticket.pk %}">#{{ ticket.ticket_number }}</a></td>
+                    {% if user.role != user.Role.EMPLOYEE %}
+                    <td data-label="Solicitante">
+                        <div class="tf-person">
+                            <span class="tf-avatar tf-avatar--sm tf-avatar--soft" aria-hidden="true">{{ ticket.created_by|initials }}</span>
+                            <span class="tf-person__name">{{ ticket.created_by|display_name }}</span>
+                        </div>
+                    </td>
+                    {% endif %}
+                    <td class="tf-cell-primary" data-label="Asunto" style="min-width: 14rem">
+                        {% if user.role != user.Role.EMPLOYEE %}<span class="tf-label d-block mb-1">{{ ticket.category.name }}</span>{% endif %}
+                        <a class="tf-table__title" href="{% url 'tickets:detail' ticket.pk %}">{{ ticket.title }}</a>
+                        <span class="tf-table__sub tf-clamp-2">{{ ticket.description|truncatechars:110 }}</span>
+                    </td>
+                    {% if user.role == user.Role.EMPLOYEE %}<td data-label="Categoría">{{ ticket.category.name }}</td>{% endif %}
+                    {% if user.role != user.Role.AREA_MANAGER %}<td data-label="Área"><span class="tf-chip">{{ ticket.area.name }}</span></td>{% endif %}
+                    {% if user.role == user.Role.EMPLOYEE %}
+                    <td data-label="Creado" class="tf-num text-nowrap">{{ ticket.created_at|date:"d/m/Y" }}<span class="tf-table__sub">{{ ticket.created_at|date:"H:i" }}</span></td>
+                    {% else %}
+                    <td data-label="Antigüedad" style="min-width: 8.5rem">
+                        <span class="fw-semibold{% if ticket.status == 'PENDING' and not ticket.assigned_to %} text-warning-emphasis{% endif %}">Hace {{ ticket.created_at|age }}</span>
+                        <span class="tf-table__sub tf-num">{{ ticket.created_at|date:"d/m/Y H:i" }}</span>
+                    </td>
+                    <td data-label="Asignado a">
+                        {% if ticket.assigned_to %}
+                        <div class="tf-person">
+                            <span class="tf-avatar tf-avatar--sm" aria-hidden="true">{{ ticket.assigned_to|initials }}</span>
+                            <span class="tf-person__name">{{ ticket.assigned_to|display_name }}</span>
+                        </div>
+                        {% else %}
+                        <span class="tf-status tf-status--unassigned">Sin asignar</span>
+                        {% endif %}
+                    </td>
+                    {% endif %}
+                    <td data-label="Estado">{% include "partials/status_badge.html" with status=ticket.status label=ticket.get_status_display %}</td>
+                    <td data-label="" class="tf-table__actions">
+                        <a class="tf-row-link" href="{% url 'tickets:detail' ticket.pk %}">{% if user.role == user.Role.EMPLOYEE %}Ver detalle{% else %}Gestionar{% endif %}<span class="visually-hidden"> {{ ticket.ticket_number }}</span><span class="tf-icon tf-icon--sm" aria-hidden="true">chevron_right</span></a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="tf-card__footer">{% include "partials/pagination.html" %}</div>
+    {% else %}
+    <div class="tf-empty">
+        <span class="tf-empty__icon"><span class="tf-icon" aria-hidden="true">{% if filters_active %}search_off{% else %}inbox{% endif %}</span></span>
+        {% if filters_active %}
+        <p class="tf-empty__title">No hay tickets que coincidan con los filtros.</p>
+        <a class="btn btn-outline btn-sm mt-2" href="{% url 'tickets:list' %}">Limpiar filtros</a>
+        {% else %}
+        <p class="tf-empty__title">No hay tickets para mostrar.</p>
+        {% if user.role == user.Role.EMPLOYEE %}
+        <p>Cuando registres una solicitud aparecerá aquí con su estado actualizado.</p>
+        {% endif %}
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
 {% endblock %}

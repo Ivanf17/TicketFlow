@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Acceso denegado - TicketFlow{% endblock %}
+
+{% block content %}
+<div class="tf-card tf-error">
+    <div class="tf-card__body tf-card__body--lg">
+        <span class="tf-icon-tile tf-icon-tile--amber mb-3"><span class="tf-icon" aria-hidden="true">block</span></span>
+        <div class="tf-error__code">403</div>
+        <h1 class="tf-h-lg mt-2">Acceso denegado</h1>
+        <p class="tf-text-2 mt-2">Tu rol no tiene permiso para ver esta página o realizar esta acción.</p>
+        <a class="btn btn-primary mt-2" href="{% url 'home' %}"><span class="tf-icon" aria-hidden="true">home</span>Volver al inicio</a>
+    </div>
+</div>
+{% endblock %}

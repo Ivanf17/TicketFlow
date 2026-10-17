@@ -3,34 +3,88 @@
 {% block title %}Administración - TicketFlow{% endblock %}
 
 {% block content %}
-<h1 class="h3 mb-3">Administración</h1>
-<div class="row g-3">
-    <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <h2 class="h5">Usuarios</h2>
-                <p class="text-muted small">Rol, área y estado activo/inactivo.</p>
-                <a class="btn btn-primary btn-sm" href="{% url 'administration:user_list' %}">Ver usuarios</a>
+{% include "partials/admin_header.html" with title="Administración del portal" lead="Gestión centralizada de usuarios, áreas operativas y categorías de servicio." %}
+{% include "partials/admin_tabs.html" %}
+
+<div class="row tf-gap-grid mb-4">
+    <div class="col-12 col-sm-6 col-xl-3">
+        <a class="tf-metric" href="{% url 'administration:user_list' %}">
+            <div>
+                <p class="tf-metric__label">Usuarios</p>
+                <div class="tf-metric__value">{{ user_count }}</div>
+                <div class="tf-metric__foot">{{ active_user_count }} activo{{ active_user_count|pluralize }}</div>
             </div>
-        </div>
+            <span class="tf-icon-tile"><span class="tf-icon" aria-hidden="true">group</span></span>
+        </a>
     </div>
-    <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <h2 class="h5">Áreas</h2>
-                <p class="text-muted small">Unidades organizacionales.</p>
-                <a class="btn btn-primary btn-sm" href="{% url 'administration:area_list' %}">Ver áreas</a>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <a class="tf-metric" href="{% url 'administration:area_list' %}">
+            <div>
+                <p class="tf-metric__label">Áreas</p>
+                <div class="tf-metric__value">{{ area_count }}</div>
+                <div class="tf-metric__foot">{{ active_area_count }} activa{{ active_area_count|pluralize }}</div>
             </div>
-        </div>
+            <span class="tf-icon-tile tf-icon-tile--teal"><span class="tf-icon" aria-hidden="true">domain</span></span>
+        </a>
     </div>
-    <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <h2 class="h5">Categorías</h2>
-                <p class="text-muted small">Siempre pertenecen a un área.</p>
-                <a class="btn btn-primary btn-sm" href="{% url 'administration:category_list' %}">Ver categorías</a>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <a class="tf-metric" href="{% url 'administration:category_list' %}">
+            <div>
+                <p class="tf-metric__label">Categorías</p>
+                <div class="tf-metric__value">{{ category_count }}</div>
+                <div class="tf-metric__foot">{{ active_category_count }} activa{{ active_category_count|pluralize }}</div>
             </div>
-        </div>
+            <span class="tf-icon-tile tf-icon-tile--blue"><span class="tf-icon" aria-hidden="true">category</span></span>
+        </a>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <a class="tf-metric" href="{% url 'tickets:list' %}">
+            <div>
+                <p class="tf-metric__label">Tickets (global)</p>
+                <div class="tf-metric__value">{{ ticket_count }}</div>
+                <div class="tf-metric__foot">{{ unassigned_ticket_count }} pendiente{{ unassigned_ticket_count|pluralize }} sin asignar</div>
+            </div>
+            <span class="tf-icon-tile tf-icon-tile--amber"><span class="tf-icon" aria-hidden="true">confirmation_number</span></span>
+        </a>
+    </div>
+</div>
+
+<div class="row tf-gap-grid">
+    <div class="col-12 col-lg-4">
+        <section class="tf-card h-100">
+            <div class="tf-card__header"><h2 class="tf-card__title"><span class="tf-icon" aria-hidden="true">group</span>Usuarios</h2></div>
+            <div class="tf-card__body">
+                <p class="tf-muted">Alta de usuarios, rol, área y estado activo/inactivo. El último administrador activo está protegido.</p>
+                <div class="d-flex flex-wrap gap-2">
+                    <a class="btn btn-primary btn-sm" href="{% url 'administration:user_list' %}">Ver usuarios</a>
+                    <a class="btn btn-outline btn-sm" href="{% url 'administration:user_create' %}"><span class="tf-icon tf-icon--sm" aria-hidden="true">person_add</span>Crear usuario</a>
+                </div>
+            </div>
+        </section>
+    </div>
+    <div class="col-12 col-lg-4">
+        <section class="tf-card h-100">
+            <div class="tf-card__header"><h2 class="tf-card__title"><span class="tf-icon" aria-hidden="true">domain</span>Áreas</h2></div>
+            <div class="tf-card__body">
+                <p class="tf-muted">Unidades organizacionales que reciben y resuelven tickets.</p>
+                <div class="d-flex flex-wrap gap-2">
+                    <a class="btn btn-primary btn-sm" href="{% url 'administration:area_list' %}">Ver áreas</a>
+                    <a class="btn btn-outline btn-sm" href="{% url 'administration:area_create' %}"><span class="tf-icon tf-icon--sm" aria-hidden="true">add</span>Nueva área</a>
+                </div>
+            </div>
+        </section>
+    </div>
+    <div class="col-12 col-lg-4">
+        <section class="tf-card h-100">
+            <div class="tf-card__header"><h2 class="tf-card__title"><span class="tf-icon" aria-hidden="true">category</span>Categorías</h2></div>
+            <div class="tf-card__body">
+                <p class="tf-muted">Tipos de solicitud. Cada categoría pertenece siempre a un área.</p>
+                <div class="d-flex flex-wrap gap-2">
+                    <a class="btn btn-primary btn-sm" href="{% url 'administration:category_list' %}">Ver categorías</a>
+                    <a class="btn btn-outline btn-sm" href="{% url 'administration:category_create' %}"><span class="tf-icon tf-icon--sm" aria-hidden="true">add</span>Nueva categoría</a>
+                </div>
+            </div>
+        </section>
     </div>
 </div>
 {% endblock %}

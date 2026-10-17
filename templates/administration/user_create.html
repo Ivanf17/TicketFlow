@@ -3,25 +3,42 @@
 {% block title %}Nuevo usuario - Administración{% endblock %}
 
 {% block content %}
-<h1 class="h3 mb-3">Nuevo usuario</h1>
-<form method="post" novalidate>
-    {% csrf_token %}
-    {% for field in form %}
-        <div class="mb-3">
-            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-            {{ field }}
-            {% if field.help_text %}
-                <div class="form-text">{{ field.help_text|safe }}</div>
-            {% endif %}
-            {% for error in field.errors %}
-                <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
+<div class="mx-auto" style="max-width: 760px">
+    <nav aria-label="Ruta de navegación">
+        <ol class="breadcrumb tf-breadcrumb mb-3">
+            <li class="breadcrumb-item"><a href="{% url 'home' %}">Inicio</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'administration:home' %}">Administración</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'administration:user_list' %}">Usuarios</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Nuevo usuario</li>
+        </ol>
+    </nav>
+    <section class="tf-card">
+        <div class="tf-card__header">
+            <div class="d-flex align-items-center gap-3">
+                <span class="tf-icon-tile"><span class="tf-icon" aria-hidden="true">person_add</span></span>
+                <div>
+                    <h1 class="tf-h-md">Nuevo usuario</h1>
+                    <p class="tf-card__subtitle">Alta de un colaborador con su rol, área y contraseña inicial.</p>
+                </div>
+            </div>
         </div>
-    {% endfor %}
-    {% if form.non_field_errors %}
-        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
-    {% endif %}
-    <button type="submit" class="btn btn-primary">Crear usuario</button>
-    <a class="btn btn-outline-secondary" href="{% url 'administration:user_list' %}">Cancelar</a>
-</form>
+        <div class="tf-card__body">
+            <div class="tf-callout mb-4">
+                <span class="tf-icon" aria-hidden="true">info</span>
+                <p>Los roles <strong>Empleado</strong> y <strong>Encargado de área</strong> requieren un área. Administrador y Gerencia pueden no tenerla.</p>
+            </div>
+            {% include "partials/form_errors.html" %}
+            <form method="post" novalidate>
+                {% csrf_token %}
+                {% for field in form %}
+                    {% include "partials/form_field.html" %}
+                {% endfor %}
+                <div class="tf-form-actions">
+                    <a class="btn btn-outline" href="{% url 'administration:user_list' %}">Cancelar</a>
+                    <button type="submit" class="btn btn-primary"><span class="tf-icon" aria-hidden="true">save</span>Crear usuario</button>
+                </div>
+            </form>
+        </div>
+    </section>
+</div>
 {% endblock %}

@@ -1,46 +1,78 @@
 {% extends "base.html" %}
+{% load ui %}
 
 {% block title %}Notificaciones - TicketFlow{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h3 mb-0">Notificaciones</h1>
-    {% if page_obj %}
-    <form method="post" action="{% url 'notifications:mark_all_read' %}">
-        {% csrf_token %}
-        <button type="submit" class="btn btn-outline-secondary btn-sm">Marcar todas como leídas</button>
-    </form>
+<div class="tf-page-header">
+    <div class="tf-page-header__text">
+        <nav aria-label="Ruta de navegación">
+            <ol class="breadcrumb tf-breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'home' %}">Inicio</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Centro de notificaciones</li>
+            </ol>
+        </nav>
+        <h1 class="tf-h-xl">Notificaciones</h1>
+        <p class="tf-page-header__lead">Avisos internos sobre asignaciones, cambios de estado y comentarios en tus tickets.</p>
+    </div>
+    {% if unread_notifications_count %}
+    <div class="tf-page-header__actions">
+        <form method="post" action="{% url 'notifications:mark_all_read' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline"><span class="tf-icon" aria-hidden="true">done_all</span>Marcar todas como leídas</button>
+        </form>
+    </div>
     {% endif %}
 </div>
 
+<nav class="tf-tabs" aria-label="Filtrar notificaciones">
+    <a href="{% url 'notifications:list' %}"{% if not active_filter %} aria-current="page"{% endif %}>Todas <span class="tf-chip tf-chip--count">{{ total_count }}</span></a>
+    <a href="?filter=unread"{% if active_filter == 'unread' %} aria-current="page"{% endif %}>No leídas <span class="tf-chip tf-chip--count"{% if unread_notifications_count %} style="background:#ffdad6;color:#93000a"{% endif %}>{{ unread_notifications_count }}</span></a>
+    {% for value, label, count in type_tabs %}
+    <a href="?filter={{ value }}"{% if active_filter == value %} aria-current="page"{% endif %}>{{ label }} <span class="tf-chip tf-chip--count">{{ count }}</span></a>
+    {% endfor %}
+</nav>
+
 {% if page_obj %}
-<ul class="list-group">
+<ul class="tf-notif-list">
     {% for notification in page_obj %}
-    <li class="list-group-item {% if not notification.is_read %}list-group-item-light{% endif %}">
-        <div class="d-flex justify-content-between align-items-start">
-            <div>
-                <div class="{% if not notification.is_read %}fw-bold{% endif %}">{{ notification.title }}</div>
-                <div class="text-muted small">{{ notification.message }}</div>
-                <div class="text-muted small">
-                    {{ notification.created_at|date:"d/m/Y H:i" }}
-                    &middot;
-                    {% if notification.is_read %}Leída{% else %}Sin leer{% endif %}
-                    &middot;
-                    <a href="{% url 'tickets:detail' notification.ticket.pk %}">Ver ticket {{ notification.ticket.ticket_number }}</a>
-                </div>
+    <li class="tf-notif{% if not notification.is_read %} is-unread{% endif %}">
+        <span class="tf-ntype tf-ntype--{{ notification.notification_type }}" aria-hidden="true">
+            <span class="tf-icon">{% include "partials/notification_icon.html" %}</span>
+        </span>
+        <div class="tf-notif__body">
+            <div class="tf-notif__head">
+                <h2 class="tf-notif__title">{{ notification.title }}</h2>
+                <span class="tf-notif__time"><time datetime="{{ notification.created_at|date:'c' }}">{{ notification.created_at|date:"d/m/Y H:i" }}</time> &middot; {% if notification.is_read %}Leída{% else %}Sin leer{% endif %}</span>
             </div>
+            <p class="tf-notif__msg">{{ notification.message }}</p>
+        </div>
+        <div class="tf-notif__actions">
+            <a class="btn btn-soft btn-sm" href="{% url 'tickets:detail' notification.ticket.pk %}">Ver ticket {{ notification.ticket.ticket_number }}</a>
             {% if not notification.is_read %}
             <form method="post" action="{% url 'notifications:mark_read' notification.pk %}">
                 {% csrf_token %}
-                <button type="submit" class="btn btn-outline-primary btn-sm">Marcar como leída</button>
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <button type="submit" class="btn btn-outline btn-sm"><span class="tf-icon tf-icon--sm" aria-hidden="true">done</span>Marcar como leída</button>
             </form>
             {% endif %}
         </div>
     </li>
     {% endfor %}
 </ul>
-{% include "partials/pagination.html" %}
+<div class="mt-4">{% include "partials/pagination.html" %}</div>
 {% else %}
-<p>No tienes notificaciones.</p>
+<div class="tf-card">
+    <div class="tf-empty">
+        <span class="tf-empty__icon"><span class="tf-icon" aria-hidden="true">notifications_off</span></span>
+        {% if active_filter %}
+        <p class="tf-empty__title">No hay notificaciones en esta categoría.</p>
+        <a class="btn btn-outline btn-sm mt-2" href="{% url 'notifications:list' %}">Ver todas</a>
+        {% else %}
+        <p class="tf-empty__title">No tienes notificaciones.</p>
+        <p>Te avisaremos aquí cuando se asigne, cambie de estado o se comente uno de tus tickets.</p>
+        {% endif %}
+    </div>
+</div>
 {% endif %}
 {% endblock %}

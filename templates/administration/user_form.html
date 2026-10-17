@@ -3,26 +3,42 @@
 {% block title %}Editar {{ target_user.username }} - Administración{% endblock %}
 
 {% block content %}
-<h1 class="h3 mb-3">Editar usuario: {{ target_user.username }}</h1>
-<p class="text-muted small">
-    El rol, el área y el estado activo se administran aquí. El nombre de usuario,
-    el correo y la contraseña se administran desde Django Admin.
-</p>
-<form method="post" novalidate>
-    {% csrf_token %}
-    {% for field in form %}
-        <div class="mb-3">
-            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-            {{ field }}
-            {% for error in field.errors %}
-                <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
+<div class="mx-auto" style="max-width: 760px">
+    <nav aria-label="Ruta de navegación">
+        <ol class="breadcrumb tf-breadcrumb mb-3">
+            <li class="breadcrumb-item"><a href="{% url 'home' %}">Inicio</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'administration:home' %}">Administración</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'administration:user_list' %}">Usuarios</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Editar usuario: {{ target_user.username }}</li>
+        </ol>
+    </nav>
+    <section class="tf-card">
+        <div class="tf-card__header">
+            <div class="d-flex align-items-center gap-3">
+                <span class="tf-icon-tile"><span class="tf-icon" aria-hidden="true">manage_accounts</span></span>
+                <div>
+                    <h1 class="tf-h-md">Editar usuario: {{ target_user.username }}</h1>
+                    <p class="tf-card__subtitle">El rol, el área y el estado activo se administran aquí. El nombre de usuario, el correo y la contraseña se administran desde Django Admin.</p>
+                </div>
+            </div>
         </div>
-    {% endfor %}
-    {% if form.non_field_errors %}
-        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
-    {% endif %}
-    <button type="submit" class="btn btn-primary">Guardar</button>
-    <a class="btn btn-outline-secondary" href="{% url 'administration:user_list' %}">Cancelar</a>
-</form>
+        <div class="tf-card__body">
+            <div class="tf-callout tf-callout--amber mb-4">
+                <span class="tf-icon" aria-hidden="true">shield_person</span>
+                <p>El último administrador activo del sistema no puede desactivarse ni cambiar de rol.</p>
+            </div>
+            {% include "partials/form_errors.html" %}
+            <form method="post" novalidate>
+                {% csrf_token %}
+                {% for field in form %}
+                    {% include "partials/form_field.html" %}
+                {% endfor %}
+                <div class="tf-form-actions">
+                    <a class="btn btn-outline" href="{% url 'administration:user_list' %}">Cancelar</a>
+                    <button type="submit" class="btn btn-primary"><span class="tf-icon" aria-hidden="true">save</span>Guardar</button>
+                </div>
+            </form>
+        </div>
+    </section>
+</div>
 {% endblock %}

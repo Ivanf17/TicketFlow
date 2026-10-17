@@ -3,19 +3,38 @@
 {% block title %}{{ title }} - Administración{% endblock %}
 
 {% block content %}
-<h1 class="h3 mb-3">{{ title }}</h1>
-<form method="post" novalidate>
-    {% csrf_token %}
-    {% for field in form %}
-        <div class="mb-3">
-            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-            {{ field }}
-            {% for error in field.errors %}
-                <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
+<div class="mx-auto" style="max-width: 760px">
+    <nav aria-label="Ruta de navegación">
+        <ol class="breadcrumb tf-breadcrumb mb-3">
+            <li class="breadcrumb-item"><a href="{% url 'home' %}">Inicio</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'administration:home' %}">Administración</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'administration:area_list' %}">Áreas</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ title }}</li>
+        </ol>
+    </nav>
+    <section class="tf-card">
+        <div class="tf-card__header">
+            <div class="d-flex align-items-center gap-3">
+                <span class="tf-icon-tile"><span class="tf-icon" aria-hidden="true">domain</span></span>
+                <div>
+                    <h1 class="tf-h-md">{{ title }}</h1>
+                    <p class="tf-card__subtitle">Unidad organizacional que recibe tickets a través de sus categorías.</p>
+                </div>
+            </div>
         </div>
-    {% endfor %}
-    <button type="submit" class="btn btn-primary">Guardar</button>
-    <a class="btn btn-outline-secondary" href="{% url 'administration:area_list' %}">Cancelar</a>
-</form>
+        <div class="tf-card__body">
+            {% include "partials/form_errors.html" %}
+            <form method="post" novalidate>
+                {% csrf_token %}
+                {% for field in form %}
+                    {% include "partials/form_field.html" %}
+                {% endfor %}
+                <div class="tf-form-actions">
+                    <a class="btn btn-outline" href="{% url 'administration:area_list' %}">Cancelar</a>
+                    <button type="submit" class="btn btn-primary"><span class="tf-icon" aria-hidden="true">save</span>Guardar</button>
+                </div>
+            </form>
+        </div>
+    </section>
+</div>
 {% endblock %}

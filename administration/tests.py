@@ -897,3 +897,44 @@ class LastActiveAdminProtectionTests(TestCase):
         )
         self.assertEqual(response.status_code, 302)
         self.assertFalse(User.objects.filter(pk=employee.pk).exists())
+
+
+class AdministrationPanelRedesignTests(TestCase):
+    """Redesign: admin panel summary counts and Spanish role labels
+    (display-only; stored role values are unchanged)."""
+
+    def setUp(self):
+        self.area = Area.objects.create(name="TI")
+        Area.objects.create(name="Archivo", is_active=False)
+        Category.objects.create(name="Hardware", area=self.area)
+        self.admin = User.objects.create_user(
+            username="admin1", password="pass12345", role=User.Role.ADMIN,
+        )
+        User.objects.create_user(
+            username="empleado", password="pass12345",
+            role=User.Role.EMPLOYEE, area=self.area, is_active=False,
+        )
+        self.client.login(username="admin1", password="pass12345")
+
+    def test_home_shows_real_counts(self):
+        response = self.client.get(reverse("administration:home"))
+        self.assertEqual(response.context["user_count"], 2)
+        self.assertEqual(response.context["active_user_count"], 1)
+        self.assertEqual(response.context["area_count"], 2)
+        self.assertEqual(response.context["active_area_count"], 1)
+        self.assertEqual(response.context["category_count"], 1)
+
+    def test_role_select_uses_spanish_labels_with_original_values(self):
+        response = self.client.get(reverse("administration:user_create"))
+        self.assertContains(response, '<option value="area_manager">Encargado de área</option>', html=True)
+        self.assertContains(response, '<option value="management">Gerencia</option>', html=True)
+
+    def test_user_list_shows_spanish_role(self):
+        response = self.client.get(reverse("administration:user_list"))
+        self.assertContains(response, "Administrador")
+        self.assertContains(response, "Empleado")
+
+    def test_area_list_category_count_is_annotated(self):
+        response = self.client.get(reverse("administration:area_list"))
+        counts = {area.name: area.category_count for area in response.context["page_obj"]}
+        self.assertEqual(counts, {"Archivo": 0, "TI": 1})

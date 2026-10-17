@@ -1,0 +1,1 @@
+{% if notification.notification_type == "TICKET_ASSIGNED" %}assignment_ind{% elif notification.notification_type == "TICKET_REASSIGNED" %}swap_horiz{% elif notification.notification_type == "TICKET_STATUS_CHANGED" %}published_with_changes{% elif notification.notification_type == "TICKET_COMMENT_ADDED" %}forum{% else %}notifications{% endif %}

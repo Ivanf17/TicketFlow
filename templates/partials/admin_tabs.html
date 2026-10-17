@@ -1,0 +1,9 @@
+{% with url_name=request.resolver_match.url_name %}
+<nav class="tf-tabs" aria-label="Secciones de administración">
+    <a href="{% url 'administration:home' %}"{% if url_name == 'home' %} aria-current="page"{% endif %}><span class="tf-icon" aria-hidden="true">space_dashboard</span>Resumen</a>
+    <a href="{% url 'administration:user_list' %}"{% if 'user' in url_name %} aria-current="page"{% endif %}><span class="tf-icon" aria-hidden="true">group</span>Usuarios</a>
+    <a href="{% url 'administration:area_list' %}"{% if 'area' in url_name %} aria-current="page"{% endif %}><span class="tf-icon" aria-hidden="true">domain</span>Áreas</a>
+    <a href="{% url 'administration:category_list' %}"{% if 'category' in url_name %} aria-current="page"{% endif %}><span class="tf-icon" aria-hidden="true">category</span>Categorías</a>
+    <a href="{% url 'tickets:list' %}"><span class="tf-icon" aria-hidden="true">confirmation_number</span>Todos los tickets (global)</a>
+</nav>
+{% endwith %}

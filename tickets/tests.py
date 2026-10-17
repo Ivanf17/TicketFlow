@@ -1293,3 +1293,289 @@ class TicketLifecycleAcceptanceTests(TestCase):
         self.assertEqual(response.context["total"], 1)
         self.assertEqual(response.context["resolved"], 1)
         self.assertContains(response, ticket.ticket_number)
+
+
+class TicketListFilterTests(TestCase):
+    """Redesign: the ticket list's status/assignment/search filters and
+    summary counts. Filters may only narrow get_visible_tickets, never
+    widen it, and unknown values are ignored."""
+
+    def setUp(self):
+        self.area = Area.objects.create(name="TI")
+        self.other_area = Area.objects.create(name="RRHH")
+        self.category = Category.objects.create(name="Hardware", area=self.area)
+        self.other_category = Category.objects.create(name="Nómina", area=self.other_area)
+        self.employee = User.objects.create_user(
+            username="empleado1", password="pass12345",
+            role=User.Role.EMPLOYEE, area=self.area,
+        )
+        self.other_employee = User.objects.create_user(
+            username="empleado2", password="pass12345",
+            role=User.Role.EMPLOYEE, area=self.area,
+        )
+        self.manager = User.objects.create_user(
+            username="jefe_ti", password="pass12345",
+            role=User.Role.AREA_MANAGER, area=self.area,
+        )
+        self.pending = Ticket.objects.create_ticket(
+            title="Impresora rota", description="d",
+            category=self.category, created_by=self.employee,
+        )
+        self.in_process = Ticket.objects.create_ticket(
+            title="Monitor sin imagen", description="d",
+            category=self.category, created_by=self.employee,
+        )
+        change_ticket_status(
+            self.in_process, new_status=Ticket.Status.IN_PROCESS, changed_by=self.manager
+        )
+        self.foreign = Ticket.objects.create_ticket(
+            title="Impresora ajena", description="d",
+            category=self.category, created_by=self.other_employee,
+        )
+        self.other_area_ticket = Ticket.objects.create_ticket(
+            title="Recibo de sueldo", description="d",
+            category=self.other_category, created_by=self.employee,
+        )
+
+    def _pks(self, response):
+        return {ticket.pk for ticket in response.context["page_obj"]}
+
+    def test_status_filter_narrows_list(self):
+        self.client.login(username="empleado1", password="pass12345")
+        response = self.client.get(reverse("tickets:list"), {"status": "IN_PROCESS"})
+        self.assertEqual(self._pks(response), {self.in_process.pk})
+        self.assertEqual(response.context["status_filter"], "IN_PROCESS")
+
+    def test_unknown_status_is_ignored(self):
+        self.client.login(username="empleado1", password="pass12345")
+        response = self.client.get(reverse("tickets:list"), {"status": "HACKED"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["status_filter"], "")
+        self.assertEqual(
+            self._pks(response),
+            {self.pending.pk, self.in_process.pk, self.other_area_ticket.pk},
+        )
+
+    def test_search_never_returns_tickets_outside_visibility(self):
+        self.client.login(username="empleado1", password="pass12345")
+        response = self.client.get(reverse("tickets:list"), {"q": "Impresora"})
+        self.assertEqual(self._pks(response), {self.pending.pk})
+
+    def test_search_by_ticket_number(self):
+        self.client.login(username="empleado1", password="pass12345")
+        response = self.client.get(
+            reverse("tickets:list"), {"q": self.in_process.ticket_number}
+        )
+        self.assertEqual(self._pks(response), {self.in_process.pk})
+
+    def test_assignment_filter_for_area_manager_stays_in_own_area(self):
+        self.client.login(username="jefe_ti", password="pass12345")
+        response = self.client.get(reverse("tickets:list"), {"assignment": "unassigned"})
+        # No Round Robin ran in this setUp, so every TI ticket is unassigned;
+        # the RRHH ticket must never appear for the TI manager.
+        self.assertEqual(
+            self._pks(response), {self.pending.pk, self.in_process.pk, self.foreign.pk}
+        )
+
+    def test_summary_counts_cover_all_visible_tickets(self):
+        self.client.login(username="empleado1", password="pass12345")
+        response = self.client.get(reverse("tickets:list"), {"status": "RESOLVED"})
+        self.assertEqual(response.context["count_total"], 3)
+        self.assertEqual(response.context["count_pending"], 2)
+        self.assertEqual(response.context["count_in_process"], 1)
+        self.assertEqual(response.context["count_resolved"], 0)
+
+    def test_pagination_links_keep_active_filters(self):
+        for i in range(25):
+            Ticket.objects.create_ticket(
+                title=f"Extra {i}", description="d",
+                category=self.category, created_by=self.employee,
+            )
+        self.client.login(username="empleado1", password="pass12345")
+        response = self.client.get(reverse("tickets:list"), {"status": "PENDING"})
+        self.assertContains(response, "?status=PENDING&amp;page=2")
+
+
+class TicketListMyTicketsTests(TestCase):
+    """Area manager's "Mis tickets": unresolved (PENDING + IN_PROCESS)
+    tickets of their own area, as a sidebar link, a metric card and the
+    ?status=OPEN list filter. It only narrows get_visible_tickets."""
+
+    def setUp(self):
+        self.area = Area.objects.create(name="TI")
+        self.other_area = Area.objects.create(name="RRHH")
+        self.category = Category.objects.create(name="Hardware", area=self.area)
+        self.other_category = Category.objects.create(name="Nómina", area=self.other_area)
+        self.employee = User.objects.create_user(
+            username="empleado1", password="pass12345",
+            role=User.Role.EMPLOYEE, area=self.area,
+        )
+        self.manager = User.objects.create_user(
+            username="jefe_ti", password="pass12345",
+            role=User.Role.AREA_MANAGER, area=self.area,
+        )
+        self.other_manager = User.objects.create_user(
+            username="jefe_rrhh", password="pass12345",
+            role=User.Role.AREA_MANAGER, area=self.other_area,
+        )
+        self.admin = User.objects.create_user(
+            username="admin1", password="pass12345", role=User.Role.ADMIN,
+        )
+        self.pending = Ticket.objects.create_ticket(
+            title="Impresora rota", description="d",
+            category=self.category, created_by=self.employee,
+        )
+        self.in_process = Ticket.objects.create_ticket(
+            title="Monitor sin imagen", description="d",
+            category=self.category, created_by=self.employee,
+        )
+        change_ticket_status(
+            self.in_process, new_status=Ticket.Status.IN_PROCESS, changed_by=self.manager
+        )
+        self.resolved = Ticket.objects.create_ticket(
+            title="Teclado nuevo", description="d",
+            category=self.category, created_by=self.employee,
+        )
+        for status in (Ticket.Status.IN_PROCESS, Ticket.Status.RESOLVED):
+            change_ticket_status(self.resolved, new_status=status, changed_by=self.manager)
+        self.other_area_ticket = Ticket.objects.create_ticket(
+            title="Recibo de sueldo", description="d",
+            category=self.other_category, created_by=self.employee,
+        )
+        self.open_pks = {self.pending.pk, self.in_process.pk}
+
+    def _pks(self, response):
+        return {ticket.pk for ticket in response.context["page_obj"]}
+
+    def test_sidebar_shows_mis_tickets_instead_of_sin_asignar(self):
+        self.client.login(username="jefe_ti", password="pass12345")
+        response = self.client.get(reverse("home"))
+        self.assertContains(response, 'href="/tickets/?status=OPEN" title="Mis tickets"')
+        self.assertNotContains(response, "?assignment=unassigned")
+        self.assertNotContains(response, 'title="Sin asignar"')
+
+    def test_sidebar_marks_mis_tickets_active_on_open_filter(self):
+        self.client.login(username="jefe_ti", password="pass12345")
+        response = self.client.get(reverse("tickets:list"), {"status": "OPEN"})
+        self.assertContains(
+            response,
+            '<a class="tf-nav__link is-active" href="/tickets/?status=OPEN" '
+            'title="Mis tickets" aria-current="page">',
+            html=False,
+        )
+
+    def test_card_counts_pending_and_in_process_only(self):
+        self.client.login(username="jefe_ti", password="pass12345")
+        response = self.client.get(reverse("tickets:list"))
+        self.assertEqual(response.context["count_open"], 2)
+        self.assertContains(response, "Mis tickets")
+        self.assertContains(response, "Pendientes y en proceso")
+        self.assertNotContains(response, "Pendientes sin asignar")
+
+    def test_card_count_ignores_other_list_filters(self):
+        self.client.login(username="jefe_ti", password="pass12345")
+        response = self.client.get(reverse("tickets:list"), {"status": "RESOLVED"})
+        self.assertEqual(response.context["count_open"], 2)
+
+    def test_open_filter_lists_exactly_what_the_card_counts(self):
+        self.client.login(username="jefe_ti", password="pass12345")
+        response = self.client.get(reverse("tickets:list"), {"status": "OPEN"})
+        self.assertEqual(response.context["status_filter"], "OPEN")
+        self.assertEqual(self._pks(response), self.open_pks)
+        self.assertEqual(len(self._pks(response)), response.context["count_open"])
+        self.assertNotIn(self.resolved.pk, self._pks(response))
+
+    def test_open_filter_never_includes_other_areas(self):
+        self.client.login(username="jefe_rrhh", password="pass12345")
+        response = self.client.get(reverse("tickets:list"), {"status": "OPEN"})
+        self.assertEqual(self._pks(response), {self.other_area_ticket.pk})
+        self.assertEqual(response.context["count_open"], 1)
+
+    def test_manager_cannot_open_other_area_ticket_detail(self):
+        self.client.login(username="jefe_ti", password="pass12345")
+        response = self.client.get(
+            reverse("tickets:detail", args=[self.other_area_ticket.pk])
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_open_filter_combines_with_search(self):
+        self.client.login(username="jefe_ti", password="pass12345")
+        response = self.client.get(
+            reverse("tickets:list"), {"status": "OPEN", "q": "Monitor"}
+        )
+        self.assertEqual(self._pks(response), {self.in_process.pk})
+        self.assertContains(response, '<input type="hidden" name="status" value="OPEN">')
+
+    def test_exact_status_filters_still_work_for_manager(self):
+        self.client.login(username="jefe_ti", password="pass12345")
+        response = self.client.get(reverse("tickets:list"), {"status": "RESOLVED"})
+        self.assertEqual(self._pks(response), {self.resolved.pk})
+
+    def test_pagination_keeps_open_filter(self):
+        for i in range(25):
+            Ticket.objects.create_ticket(
+                title=f"Extra {i}", description="d",
+                category=self.category, created_by=self.employee,
+            )
+        self.client.login(username="jefe_ti", password="pass12345")
+        response = self.client.get(reverse("tickets:list"), {"status": "OPEN"})
+        self.assertContains(response, "?status=OPEN&amp;page=2")
+
+    def test_manager_no_longer_sees_assignment_filter(self):
+        self.client.login(username="jefe_ti", password="pass12345")
+        response = self.client.get(reverse("tickets:list"))
+        self.assertNotContains(response, 'id="tf-filter-assignment"')
+
+    def test_admin_keeps_unassigned_card_and_assignment_filter(self):
+        self.client.login(username="admin1", password="pass12345")
+        response = self.client.get(reverse("tickets:list"))
+        self.assertContains(response, "Pendientes sin asignar")
+        self.assertContains(response, 'id="tf-filter-assignment"')
+        self.assertNotContains(response, 'title="Mis tickets"')
+
+    def test_employee_list_unchanged(self):
+        self.client.login(username="empleado1", password="pass12345")
+        response = self.client.get(reverse("tickets:list"))
+        self.assertContains(response, "Total solicitadas")
+        self.assertNotContains(response, 'title="Mis tickets"')
+        self.assertNotContains(response, "Sin resolver")
+
+
+class TicketDetailStatusStepsTests(TestCase):
+    """Redesign: the linear-flow stepper is read from TicketHistory."""
+
+    def setUp(self):
+        self.area = Area.objects.create(name="TI")
+        self.category = Category.objects.create(name="Hardware", area=self.area)
+        self.employee = User.objects.create_user(
+            username="empleado1", password="pass12345",
+            role=User.Role.EMPLOYEE, area=self.area,
+        )
+        self.manager = User.objects.create_user(
+            username="jefe_ti", password="pass12345",
+            role=User.Role.AREA_MANAGER, area=self.area,
+        )
+        self.ticket = Ticket.objects.create_ticket(
+            title="Impresora rota", description="d",
+            category=self.category, created_by=self.employee,
+        )
+        change_ticket_status(
+            self.ticket, new_status=Ticket.Status.IN_PROCESS, changed_by=self.manager
+        )
+
+    def test_steps_reflect_current_status_and_history(self):
+        self.client.login(username="jefe_ti", password="pass12345")
+        response = self.client.get(reverse("tickets:detail", args=[self.ticket.pk]))
+        steps = response.context["status_steps"]
+        self.assertEqual([s["state"] for s in steps], ["done", "current", "upcoming"])
+        self.assertEqual(steps[1]["entry"].changed_by, self.manager)
+        self.assertIsNone(steps[2]["entry"])
+        self.assertContains(response, "Paso 3 de 3")
+
+    def test_employee_sees_steps_but_no_status_action(self):
+        self.client.login(username="empleado1", password="pass12345")
+        response = self.client.get(reverse("tickets:detail", args=[self.ticket.pk]))
+        self.assertEqual(len(response.context["status_steps"]), 3)
+        self.assertNotContains(
+            response, reverse("tickets:change_status", args=[self.ticket.pk])
+        )

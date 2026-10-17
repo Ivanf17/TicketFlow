@@ -1,30 +1,60 @@
 {% extends "base.html" %}
+{% load ui %}
 
 {% block title %}Iniciar sesión - TicketFlow{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-5">
-        <h1 class="h3 mb-3">Iniciar sesión</h1>
-        <form method="post">
+<div class="tf-auth-card">
+    <div class="tf-auth-card__head">
+        <div class="tf-auth-logo">
+            <span class="tf-brand__logo"><span class="tf-icon" aria-hidden="true">confirmation_number</span></span>
+            <div>
+                <div class="tf-auth-logo__name">TicketFlow</div>
+                <div class="tf-muted">Gestión de solicitudes internas</div>
+            </div>
+        </div>
+        <h1 class="tf-h-md mb-1">Iniciar sesión</h1>
+        <p class="tf-text-2 mb-0">Portal de solicitudes internas. Ingresa con tu usuario y contraseña de la organización.</p>
+    </div>
+    <div class="tf-auth-card__body">
+        {% include "partials/form_errors.html" %}
+        <form method="post" novalidate>
             {% csrf_token %}
-            {% for field in form %}
-                <div class="mb-3">
-                    <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                    {{ field }}
-                    {% for error in field.errors %}
-                        <div class="text-danger small">{{ error }}</div>
-                    {% endfor %}
+            <input type="hidden" name="next" value="{{ next }}">
+            <div class="mb-3">
+                <label class="form-label" for="{{ form.username.id_for_label }}">Usuario</label>
+                <div class="tf-input-icon">
+                    <span class="tf-icon" aria-hidden="true">person</span>
+                    {{ form.username|ui_field:"form-control-lg" }}
                 </div>
-            {% endfor %}
-            {% if form.non_field_errors %}
-                <div class="alert alert-danger">{{ form.non_field_errors }}</div>
-            {% endif %}
-            <button type="submit" class="btn btn-primary">Entrar</button>
+                {% for error in form.username.errors %}<div class="tf-field-error" id="{{ form.username.auto_id }}_errors">{{ error }}</div>{% endfor %}
+            </div>
+            <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-baseline gap-2">
+                    <label class="form-label" for="{{ form.password.id_for_label }}">Contraseña</label>
+                    <a class="small fw-semibold text-decoration-none" href="{% url 'users:password_reset' %}">¿Olvidaste tu contraseña?</a>
+                </div>
+                <div class="tf-input-icon has-action">
+                    <span class="tf-icon" aria-hidden="true">lock</span>
+                    {{ form.password|ui_field:"form-control-lg" }}
+                    <button type="button" class="tf-icon-btn tf-input-action" data-toggle-password="{{ form.password.id_for_label }}" aria-pressed="false" aria-label="Mostrar contraseña">
+                        <span class="tf-icon" aria-hidden="true">visibility</span>
+                    </button>
+                </div>
+                {% for error in form.password.errors %}<div class="tf-field-error" id="{{ form.password.auto_id }}_errors">{{ error }}</div>{% endfor %}
+            </div>
+            <button type="submit" class="btn btn-primary btn-lg w-100 mt-2">
+                Iniciar sesión <span class="tf-icon" aria-hidden="true">arrow_forward</span>
+            </button>
         </form>
-        <p class="mt-3">
-            <a href="{% url 'users:password_reset' %}">¿Olvidaste tu contraseña?</a>
-        </p>
+        <div class="tf-callout mt-4">
+            <span class="tf-icon" aria-hidden="true">shield</span>
+            <p>Acceso restringido a personal autorizado. Si no tienes usuario, solicítalo al administrador del sistema.</p>
+        </div>
+    </div>
+    <div class="tf-auth-card__foot">
+        <span class="d-inline-flex align-items-center gap-1"><span class="tf-icon tf-icon--sm" aria-hidden="true">lock</span>Sesión protegida</span>
+        <span>TicketFlow</span>
     </div>
 </div>
 {% endblock %}

@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Página no encontrada - TicketFlow{% endblock %}
+
+{% block content %}
+<div class="tf-card tf-error">
+    <div class="tf-card__body tf-card__body--lg">
+        <span class="tf-icon-tile mb-3"><span class="tf-icon" aria-hidden="true">search_off</span></span>
+        <div class="tf-error__code">404</div>
+        <h1 class="tf-h-lg mt-2">Página no encontrada</h1>
+        <p class="tf-text-2 mt-2">La página no existe o no tienes acceso a este recurso.</p>
+        <a class="btn btn-primary mt-2" href="{% url 'home' %}"><span class="tf-icon" aria-hidden="true">home</span>Volver al inicio</a>
+    </div>
+</div>
+{% endblock %}

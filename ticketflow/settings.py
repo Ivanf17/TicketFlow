@@ -78,6 +78,9 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "notifications.context_processors.unread_notifications_count",
             ],
+            # Presentation-only template helpers (form widget classes,
+            # Spanish role labels, query-string building for pagination).
+            "libraries": {"ui": "ticketflow.templatetags.ui"},
         },
     },
 ]

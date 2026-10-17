@@ -98,8 +98,11 @@ TicketFlow le da a la organización:
 - **Backend:** Python 3.12 + Django 5.0 (LTS-compatible).
 - **Base de datos:** PostgreSQL. No se usa SQLite en ningún entorno, ni
   siquiera en desarrollo o en los tests.
-- **Frontend:** Django Templates + Bootstrap 5 (vía CDN) + JavaScript
-  básico. Sin React ni ningún framework SPA.
+- **Frontend:** Django Templates + Bootstrap 5.3.3 (vía CDN) + JavaScript
+  básico. Sin React ni ningún framework SPA. Sistema visual basado en
+  los diseños de Google Stitch (guía en `docs/diseno-referencia.md`): CSS propio en
+  `static/css/ticketflow.css` sobre las variables de Bootstrap,
+  tipografía Inter e iconos Material Symbols (Google Fonts).
 - **Autenticación:** sesiones nativas de Django
   (`django.contrib.auth` + `django.contrib.sessions`). Sin JWT ni
   autenticación por token.
@@ -235,7 +238,7 @@ de sesión nativas de Django (sin tokens).
 python manage.py test
 ```
 
-El proyecto tiene 264 tests automatizados repartidos en cada app
+El proyecto tiene 300 tests automatizados repartidos en cada app
 (`<app>/tests.py`), cubriendo modelos, permisos, la máquina de
 estados, Round Robin, notificaciones, reportes, paginación y un test
 de aceptación end-to-end del flujo completo de un ticket. Además:

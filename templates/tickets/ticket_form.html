@@ -1,23 +1,69 @@
 {% extends "base.html" %}
+{% load ui %}
 
 {% block title %}Nuevo ticket - TicketFlow{% endblock %}
 
 {% block content %}
-<h1 class="h3 mb-3">Reportar un ticket</h1>
-<form method="post" novalidate>
-    {% csrf_token %}
-    {% for field in form %}
-        <div class="mb-3">
-            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-            {{ field }}
-            {% for error in field.errors %}
-                <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
+<div class="mx-auto" style="max-width: 920px">
+    <nav aria-label="Ruta de navegación">
+        <ol class="breadcrumb tf-breadcrumb mb-3">
+            <li class="breadcrumb-item"><a href="{% url 'home' %}">Inicio</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'tickets:list' %}">Mis solicitudes</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Crear solicitud</li>
+        </ol>
+    </nav>
+
+    <section class="tf-card">
+        <div class="tf-card__body tf-card__body--lg border-bottom">
+            <h1 class="tf-h-lg d-flex align-items-center gap-2"><span class="tf-icon tf-icon--lg text-primary" aria-hidden="true">post_add</span>Reportar un ticket</h1>
+            <p class="tf-text-2 mt-2 mb-0">Describe tu incidencia o solicitud. El área responsable se determina automáticamente según la categoría seleccionada y el ticket se asigna a un encargado de esa área.</p>
         </div>
-    {% endfor %}
-    {% if form.non_field_errors %}
-        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
-    {% endif %}
-    <button type="submit" class="btn btn-primary">Crear ticket</button>
-</form>
+        <div class="tf-card__body tf-card__body--lg">
+            <div class="tf-callout mb-4">
+                <span class="tf-icon" aria-hidden="true">info</span>
+                <div>
+                    <div class="tf-callout__title">Flujo de atención lineal</div>
+                    <p>Cada ticket avanza en un único sentido: <strong>Pendiente → En proceso → Resuelto</strong>. Recibirás una notificación en cada cambio de estado.</p>
+                </div>
+            </div>
+
+            {% include "partials/form_errors.html" %}
+            <form method="post" novalidate>
+                {% csrf_token %}
+
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-baseline gap-2">
+                        <label class="form-label" for="{{ form.title.id_for_label }}">Título<span class="tf-required" aria-hidden="true">*</span></label>
+                        {% if form.title.field.max_length %}<span class="tf-muted small">Máx. {{ form.title.field.max_length }} caracteres</span>{% endif %}
+                    </div>
+                    {{ form.title|ui_field }}
+                    {% if form.title.errors %}<div class="tf-field-error" id="{{ form.title.auto_id }}_errors">{% for error in form.title.errors %}{{ error }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</div>{% endif %}
+                </div>
+
+                <div class="mb-3" data-area-preview="tf-area-preview">
+                    <label class="form-label" for="{{ form.category.id_for_label }}">Categoría<span class="tf-required" aria-hidden="true">*</span></label>
+                    {{ form.category|ui_field }}
+                    {% if form.category.errors %}<div class="tf-field-error" id="{{ form.category.auto_id }}_errors">{% for error in form.category.errors %}{{ error }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</div>{% endif %}
+                    <div class="form-text">Las opciones se muestran como <em>Área / Categoría</em>.</div>
+                </div>
+                <div class="tf-callout tf-callout--teal mb-4" id="tf-area-preview" hidden aria-live="polite">
+                    <span class="tf-icon" aria-hidden="true">verified</span>
+                    <p><strong>Área de destino: <span data-area-name></span>.</strong> El ticket se enviará a los encargados de esa área.</p>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="{{ form.description.id_for_label }}">Descripción detallada<span class="tf-required" aria-hidden="true">*</span></label>
+                    {{ form.description|ui_field }}
+                    {% if form.description.errors %}<div class="tf-field-error" id="{{ form.description.auto_id }}_errors">{% for error in form.description.errors %}{{ error }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</div>{% endif %}
+                    <div class="form-text">Indica qué ocurre, dónde y desde cuándo, y cómo afecta a tu trabajo.</div>
+                </div>
+
+                <div class="tf-form-actions">
+                    <a class="btn btn-outline" href="{% url 'tickets:list' %}"><span class="tf-icon" aria-hidden="true">arrow_back</span>Cancelar</a>
+                    <button type="submit" class="btn btn-primary">Crear ticket<span class="tf-icon" aria-hidden="true">send</span></button>
+                </div>
+            </form>
+        </div>
+    </section>
+</div>
 {% endblock %}

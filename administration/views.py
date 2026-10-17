@@ -3,10 +3,11 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
-from django.db.models import ProtectedError
+from django.db.models import Count, ProtectedError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
+from tickets.models import Ticket
 from users.models import User
 
 from .forms import AreaForm, CategoryForm, UserAdminForm, UserCreateForm
@@ -29,7 +30,21 @@ def _require_admin(request):
 @login_required
 def administration_home(request):
     _require_admin(request)
-    return render(request, "administration/home.html")
+    # Summary figures for the admin panel cards (plain counts, no
+    # business logic; each is a single COUNT query).
+    context = {
+        "user_count": User.objects.count(),
+        "active_user_count": User.objects.filter(is_active=True).count(),
+        "area_count": Area.objects.count(),
+        "active_area_count": Area.objects.filter(is_active=True).count(),
+        "category_count": Category.objects.count(),
+        "active_category_count": Category.objects.filter(is_active=True).count(),
+        "ticket_count": Ticket.objects.count(),
+        "unassigned_ticket_count": Ticket.objects.filter(
+            assigned_to__isnull=True, status=Ticket.Status.PENDING
+        ).count(),
+    }
+    return render(request, "administration/home.html", context)
 
 
 # --- Areas -------------------------------------------------------------
@@ -38,7 +53,8 @@ def administration_home(request):
 @login_required
 def area_list(request):
     _require_admin(request)
-    areas = Area.objects.order_by("name")
+    # category_count is annotated so the list doesn't run one COUNT per row.
+    areas = Area.objects.annotate(category_count=Count("categories")).order_by("name")
     page_obj = Paginator(areas, settings.PAGE_SIZE).get_page(request.GET.get("page"))
     return render(request, "administration/area_list.html", {"page_obj": page_obj})
 

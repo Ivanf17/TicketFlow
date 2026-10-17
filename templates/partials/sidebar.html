@@ -1,0 +1,101 @@
+{% load ui %}
+{# Role-aware navigation. Only links the current role can actually use are shown; every view still enforces its own permissions server-side. #}
+{% with ns=request.resolver_match.namespace url_name=request.resolver_match.url_name role=user.role %}
+<aside class="tf-sidebar offcanvas-lg offcanvas-start" id="tf-sidebar" tabindex="-1" aria-label="Navegación principal">
+    <div class="offcanvas-header">
+        <span class="tf-h-sm">Menú</span>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#tf-sidebar" aria-label="Cerrar menú"></button>
+    </div>
+    <div class="tf-sidebar__inner">
+        <a class="tf-brand" href="{% url 'home' %}" title="TicketFlow — Inicio">
+            <span class="tf-brand__logo"><span class="tf-icon" aria-hidden="true">confirmation_number</span></span>
+            <span class="tf-brand__text">
+                <span class="tf-brand__name">TicketFlow</span>
+                <span class="tf-brand__sub">{% if role == user.Role.ADMIN %}Portal administrativo{% elif role == user.Role.MANAGEMENT %}Gerencia{% else %}Portal interno{% endif %}</span>
+            </span>
+        </a>
+
+        {% if role == user.Role.EMPLOYEE %}
+        <div class="tf-sidebar__cta">
+            <a class="btn btn-primary w-100" href="{% url 'tickets:create' %}" title="Nuevo ticket">
+                <span class="tf-icon" aria-hidden="true">add</span><span class="tf-nav__text">Nuevo ticket</span>
+            </a>
+        </div>
+        {% elif role == user.Role.ADMIN %}
+        <div class="tf-sidebar__cta">
+            <a class="btn btn-primary w-100" href="{% url 'administration:user_create' %}" title="Nuevo usuario">
+                <span class="tf-icon" aria-hidden="true">person_add</span><span class="tf-nav__text">Nuevo usuario</span>
+            </a>
+        </div>
+        {% endif %}
+
+        <nav aria-label="Secciones">
+            {% if role == user.Role.EMPLOYEE %}
+            <div class="tf-nav-section tf-label">Portal empleado</div>
+            <ul class="tf-nav">
+                <li><a class="tf-nav__link{% if ns == 'tickets' and url_name != 'create' %} is-active{% endif %}" href="{% url 'tickets:list' %}" title="Mis solicitudes"{% if ns == 'tickets' and url_name == 'list' %} aria-current="page"{% endif %}>
+                    <span class="tf-icon" aria-hidden="true">inbox</span><span class="tf-nav__text">Mis solicitudes</span></a></li>
+                <li><a class="tf-nav__link{% if ns == 'tickets' and url_name == 'create' %} is-active{% endif %}" href="{% url 'tickets:create' %}" title="Crear solicitud"{% if ns == 'tickets' and url_name == 'create' %} aria-current="page"{% endif %}>
+                    <span class="tf-icon" aria-hidden="true">post_add</span><span class="tf-nav__text">Crear solicitud</span></a></li>
+            </ul>
+
+            {% elif role == user.Role.AREA_MANAGER %}
+            <div class="tf-nav-section tf-label">Área {{ user.area.name }}</div>
+            <ul class="tf-nav">
+                <li><a class="tf-nav__link{% if ns == 'tickets' and request.GET.status != 'OPEN' %} is-active{% endif %}" href="{% url 'tickets:list' %}" title="Tickets de mi área"{% if ns == 'tickets' and url_name == 'list' and request.GET.status != 'OPEN' %} aria-current="page"{% endif %}>
+                    <span class="tf-icon" aria-hidden="true">engineering</span><span class="tf-nav__text">Tickets de mi área</span></a></li>
+                <li><a class="tf-nav__link{% if ns == 'tickets' and url_name == 'list' and request.GET.status == 'OPEN' %} is-active{% endif %}" href="{% url 'tickets:list' %}?status=OPEN" title="Mis tickets"{% if ns == 'tickets' and url_name == 'list' and request.GET.status == 'OPEN' %} aria-current="page"{% endif %}>
+                    <span class="tf-icon" aria-hidden="true">assignment_ind</span><span class="tf-nav__text">Mis tickets</span></a></li>
+                <li><a class="tf-nav__link{% if ns == 'reports' %} is-active{% endif %}" href="{% url 'reports:dashboard' %}" title="Dashboard del área"{% if ns == 'reports' %} aria-current="page"{% endif %}>
+                    <span class="tf-icon" aria-hidden="true">monitoring</span><span class="tf-nav__text">Dashboard del área</span></a></li>
+            </ul>
+
+            {% elif role == user.Role.ADMIN %}
+            <div class="tf-nav-section tf-label">Módulos del sistema</div>
+            <ul class="tf-nav">
+                <li><a class="tf-nav__link{% if ns == 'administration' and url_name == 'home' %} is-active{% endif %}" href="{% url 'administration:home' %}" title="Panel admin"{% if ns == 'administration' and url_name == 'home' %} aria-current="page"{% endif %}>
+                    <span class="tf-icon" aria-hidden="true">space_dashboard</span><span class="tf-nav__text">Panel admin</span></a></li>
+                <li><a class="tf-nav__link{% if ns == 'tickets' %} is-active{% endif %}" href="{% url 'tickets:list' %}" title="Todos los tickets"{% if ns == 'tickets' and url_name == 'list' %} aria-current="page"{% endif %}>
+                    <span class="tf-icon" aria-hidden="true">confirmation_number</span><span class="tf-nav__text">Todos los tickets</span></a></li>
+                <li><a class="tf-nav__link{% if ns == 'administration' and 'user' in url_name %} is-active{% endif %}" href="{% url 'administration:user_list' %}" title="Usuarios"{% if ns == 'administration' and url_name == 'user_list' %} aria-current="page"{% endif %}>
+                    <span class="tf-icon" aria-hidden="true">group</span><span class="tf-nav__text">Usuarios</span></a></li>
+                <li><a class="tf-nav__link{% if ns == 'administration' and 'area' in url_name %} is-active{% endif %}" href="{% url 'administration:area_list' %}" title="Áreas"{% if ns == 'administration' and url_name == 'area_list' %} aria-current="page"{% endif %}>
+                    <span class="tf-icon" aria-hidden="true">domain</span><span class="tf-nav__text">Áreas</span></a></li>
+                <li><a class="tf-nav__link{% if ns == 'administration' and 'category' in url_name %} is-active{% endif %}" href="{% url 'administration:category_list' %}" title="Categorías"{% if ns == 'administration' and url_name == 'category_list' %} aria-current="page"{% endif %}>
+                    <span class="tf-icon" aria-hidden="true">category</span><span class="tf-nav__text">Categorías</span></a></li>
+                <li><a class="tf-nav__link{% if ns == 'reports' %} is-active{% endif %}" href="{% url 'reports:dashboard' %}" title="Dashboard"{% if ns == 'reports' %} aria-current="page"{% endif %}>
+                    <span class="tf-icon" aria-hidden="true">monitoring</span><span class="tf-nav__text">Dashboard</span></a></li>
+            </ul>
+
+            {% elif role == user.Role.MANAGEMENT %}
+            <div class="tf-nav-section tf-label">Métricas agregadas</div>
+            <ul class="tf-nav">
+                <li><a class="tf-nav__link{% if ns == 'reports' %} is-active{% endif %}" href="{% url 'reports:dashboard' %}" title="Dashboard ejecutivo"{% if ns == 'reports' %} aria-current="page"{% endif %}>
+                    <span class="tf-icon" aria-hidden="true">space_dashboard</span><span class="tf-nav__text">Dashboard ejecutivo</span></a></li>
+            </ul>
+            <div class="tf-sidebar__note">
+                <strong><span class="tf-icon tf-icon--sm" aria-hidden="true">lock</span>Restricción de negocio</strong>
+                Vista exclusiva de métricas agregadas. El detalle individual de los tickets no está disponible para Gerencia.
+            </div>
+            {% endif %}
+
+            <div class="tf-nav-section tf-label">Cuenta</div>
+            <ul class="tf-nav">
+                <li><a class="tf-nav__link{% if ns == 'notifications' %} is-active{% endif %}" href="{% url 'notifications:list' %}" title="Notificaciones"{% if ns == 'notifications' %} aria-current="page"{% endif %}>
+                    <span class="tf-icon" aria-hidden="true">notifications</span><span class="tf-nav__text">Notificaciones</span>
+                    {% if unread_notifications_count %}<span class="tf-nav__badge" aria-hidden="true">{{ unread_notifications_count }}</span>{% endif %}
+                </a></li>
+            </ul>
+        </nav>
+
+        <div class="tf-sidebar__footer">
+            <form method="post" action="{% url 'users:logout' %}">
+                {% csrf_token %}
+                <button type="submit" class="tf-nav__link tf-nav__link--danger" title="Cerrar sesión">
+                    <span class="tf-icon" aria-hidden="true">logout</span><span class="tf-nav__text">Cerrar sesión</span>
+                </button>
+            </form>
+        </div>
+    </div>
+</aside>
+{% endwith %}

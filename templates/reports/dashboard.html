@@ -3,153 +3,240 @@
 {% block title %}Dashboard - TicketFlow{% endblock %}
 
 {% block content %}
-<h1 class="h3 mb-3">Dashboard</h1>
-
-<form method="get" class="row g-2 align-items-end mb-4">
-    {% if areas_for_filter %}
-    <div class="col-auto">
-        <label class="form-label" for="area">Área</label>
-        <select class="form-select" id="area" name="area">
-            <option value="">Todas las áreas</option>
-            {% for area in areas_for_filter %}
-            <option value="{{ area.pk }}" {% if selected_area and selected_area.pk == area.pk %}selected{% endif %}>{{ area.name }}</option>
-            {% endfor %}
-        </select>
+<div class="tf-page-header">
+    <div class="tf-page-header__text">
+        <nav aria-label="Ruta de navegación">
+            <ol class="breadcrumb tf-breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'home' %}">Inicio</a></li>
+                <li class="breadcrumb-item active" aria-current="page">{% if user.role == user.Role.MANAGEMENT %}Resumen general{% else %}Dashboard{% endif %}</li>
+            </ol>
+        </nav>
+        {% if user.role == user.Role.MANAGEMENT %}
+        <h1 class="tf-h-xl">Dashboard ejecutivo de solicitudes</h1>
+        <p class="tf-page-header__lead">Consolidado de desempeño de todas las áreas: volumen, estados y tiempos de resolución. Solo métricas agregadas.</p>
+        {% elif user.role == user.Role.AREA_MANAGER %}
+        <h1 class="tf-h-xl">Dashboard del área {{ selected_area.name }}</h1>
+        <p class="tf-page-header__lead">Métricas de los tickets de tu área.</p>
+        {% else %}
+        <h1 class="tf-h-xl">Dashboard</h1>
+        <p class="tf-page-header__lead">Métricas globales del sistema, filtrables por área y fechas.</p>
+        {% endif %}
     </div>
-    {% elif selected_area %}
-    <div class="col-auto">
-        <span class="form-label d-block">Área</span>
-        <span class="form-control-plaintext">{{ selected_area.name }}</span>
+    {% if user.role == user.Role.MANAGEMENT %}
+    <div class="tf-page-header__actions">
+        <span class="tf-chip tf-chip--role tf-chip--role-management"><span class="tf-icon tf-icon--sm" aria-hidden="true">shield</span>Acceso estratégico · solo agregados</span>
     </div>
     {% endif %}
-    <div class="col-auto">
-        <label class="form-label" for="start_date">Desde</label>
-        <input type="date" class="form-control" id="start_date" name="start_date" value="{{ start_date_value }}">
-    </div>
-    <div class="col-auto">
-        <label class="form-label" for="end_date">Hasta</label>
-        <input type="date" class="form-control" id="end_date" name="end_date" value="{{ end_date_value }}">
-    </div>
-    <div class="col-auto">
-        <button type="submit" class="btn btn-primary">Filtrar</button>
-        <a href="{% url 'reports:dashboard' %}" class="btn btn-outline-secondary">Limpiar</a>
-    </div>
-</form>
+</div>
 
-{% if start_date_error %}<div class="alert alert-warning">{{ start_date_error }}</div>{% endif %}
-{% if end_date_error %}<div class="alert alert-warning">{{ end_date_error }}</div>{% endif %}
-{% if date_range_error %}<div class="alert alert-warning">{{ date_range_error }}</div>{% endif %}
+{# --- Filters (GET; validated server-side in reports.views.dashboard) --- #}
+<section class="tf-card mb-4" aria-label="Filtros del dashboard">
+    <form method="get" class="tf-filters">
+        {% if areas_for_filter %}
+        <div class="tf-filters__group" style="min-width: 12rem">
+            <label for="area">Área</label>
+            <select class="form-select" id="area" name="area">
+                <option value="">Todas las áreas</option>
+                {% for area in areas_for_filter %}
+                <option value="{{ area.pk }}" {% if selected_area and selected_area.pk == area.pk %}selected{% endif %}>{{ area.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% elif selected_area %}
+        <div class="tf-filters__group">
+            <span class="tf-filters__label">Área</span>
+            <span class="tf-chip" style="min-height:38px;padding:0 .75rem">{{ selected_area.name }}</span>
+        </div>
+        {% endif %}
+        <div class="tf-filters__group">
+            <label for="start_date">Desde</label>
+            <input type="date" class="form-control" id="start_date" name="start_date" value="{{ start_date_value }}">
+        </div>
+        <div class="tf-filters__group">
+            <label for="end_date">Hasta</label>
+            <input type="date" class="form-control" id="end_date" name="end_date" value="{{ end_date_value }}">
+        </div>
+        <div class="tf-filters__end">
+            <button type="submit" class="btn btn-primary"><span class="tf-icon" aria-hidden="true">filter_alt</span>Filtrar</button>
+            <a href="{% url 'reports:dashboard' %}" class="btn btn-outline">Limpiar</a>
+        </div>
+    </form>
+</section>
 
-<div class="row g-3 mb-4">
-    <div class="col-6 col-md-3">
-        <div class="card text-center"><div class="card-body">
-            <div class="fs-4">{{ total }}</div><div class="text-muted small">Total</div>
-        </div></div>
+{% if start_date_error or end_date_error or date_range_error %}
+<div class="tf-alert tf-alert--warning" role="alert">
+    <span class="tf-icon" aria-hidden="true">warning</span>
+    <div class="tf-alert__text">
+        {% if start_date_error %}<div>{{ start_date_error }}</div>{% endif %}
+        {% if end_date_error %}<div>{{ end_date_error }}</div>{% endif %}
+        {% if date_range_error %}<div>{{ date_range_error }}</div>{% endif %}
     </div>
-    <div class="col-6 col-md-3">
-        <div class="card text-center"><div class="card-body">
-            <div class="fs-4">{{ pending }}</div><div class="text-muted small">Pendientes</div>
-        </div></div>
+</div>
+{% endif %}
+
+{# --- KPI cards (all derived from the same role-scoped, filtered queryset) --- #}
+<div class="row tf-gap-grid mb-4">
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="tf-metric">
+            <div>
+                <p class="tf-metric__label">Total de tickets</p>
+                <div class="tf-metric__value">{{ total }}</div>
+                <div class="tf-metric__foot">En el período y área seleccionados.</div>
+            </div>
+            <span class="tf-icon-tile"><span class="tf-icon" aria-hidden="true">confirmation_number</span></span>
+        </div>
     </div>
-    <div class="col-6 col-md-3">
-        <div class="card text-center"><div class="card-body">
-            <div class="fs-4">{{ in_process }}</div><div class="text-muted small">En proceso</div>
-        </div></div>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="tf-metric">
+            <div>
+                <p class="tf-metric__label">Tiempo promedio de resolución</p>
+                <div class="tf-metric__value" style="font-size:1.5rem">{{ average_resolution_label|default:"No hay datos" }}</div>
+                <div class="tf-metric__foot">Desde la creación hasta el paso a Resuelto.</div>
+            </div>
+            <span class="tf-icon-tile tf-icon-tile--blue"><span class="tf-icon" aria-hidden="true">timer</span></span>
+        </div>
     </div>
-    <div class="col-6 col-md-3">
-        <div class="card text-center"><div class="card-body">
-            <div class="fs-4">{{ resolved }}</div><div class="text-muted small">Resueltos</div>
-        </div></div>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="tf-metric">
+            <div>
+                <p class="tf-metric__label">Tasa de resolución</p>
+                <div class="tf-metric__value">{% if total %}{% widthratio resolved total 100 %}%{% else %}—{% endif %}</div>
+                <div class="tf-metric__foot">{{ resolved }} resuelto{{ resolved|pluralize }} de {{ total }}.</div>
+            </div>
+            <span class="tf-icon-tile tf-icon-tile--green"><span class="tf-icon" aria-hidden="true">task_alt</span></span>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="tf-metric">
+            <div>
+                <p class="tf-metric__label">Tickets abiertos</p>
+                <div class="tf-metric__value">{{ pending|add:in_process }}</div>
+                <div class="tf-metric__foot">{{ pending }} pendiente{{ pending|pluralize }} · {{ in_process }} en proceso</div>
+            </div>
+            <span class="tf-icon-tile tf-icon-tile--amber"><span class="tf-icon" aria-hidden="true">pending_actions</span></span>
+        </div>
     </div>
 </div>
 
-<div class="card mb-4">
-    <div class="card-body">
-        <div class="text-muted small">Tiempo promedio de resolución</div>
-        <div class="fs-5">{{ average_resolution_label|default:"No hay datos" }}</div>
+<div class="row tf-gap-grid mb-4">
+    {# --- Status distribution (donut, server-rendered) --- #}
+    <div class="col-12 col-lg-6">
+        <section class="tf-card h-100" aria-labelledby="tf-status-title">
+            <div class="tf-card__header">
+                <div>
+                    <h2 class="tf-card__title" id="tf-status-title">Tickets por estado</h2>
+                    <p class="tf-card__subtitle">Distribución de los {{ total }} tickets del período.</p>
+                </div>
+                <span class="tf-icon text-secondary" aria-hidden="true">donut_large</span>
+            </div>
+            <div class="tf-card__body">
+                <div class="tf-donut-wrap" id="statusChart">
+                    <div class="tf-donut{% if not total %} is-empty{% endif %}" role="img"
+                         aria-label="Pendientes: {{ pending }}; En proceso: {{ in_process }}; Resueltos: {{ resolved }}"
+                         style="--p1: {% widthratio pending total 100 %}%; --p2: {% widthratio pending|add:in_process total 100 %}%;">
+                        <div class="tf-donut__hole">
+                            <span class="tf-donut__total">{{ total }}</span>
+                            <span class="tf-donut__caption">tickets</span>
+                        </div>
+                    </div>
+                    <ul class="tf-legend">
+                        <li>
+                            <span class="tf-legend__dot" style="background: var(--tf-pending-dot)" aria-hidden="true"></span>
+                            <span class="tf-legend__name">Pendiente</span>
+                            <span class="tf-legend__pct">{% if total %}{% widthratio pending total 100 %}%{% else %}—{% endif %}</span>
+                            <span class="tf-legend__count">({{ pending }} ticket{{ pending|pluralize }})</span>
+                        </li>
+                        <li>
+                            <span class="tf-legend__dot" style="background: var(--tf-progress-dot)" aria-hidden="true"></span>
+                            <span class="tf-legend__name">En proceso</span>
+                            <span class="tf-legend__pct">{% if total %}{% widthratio in_process total 100 %}%{% else %}—{% endif %}</span>
+                            <span class="tf-legend__count">({{ in_process }} ticket{{ in_process|pluralize }})</span>
+                        </li>
+                        <li>
+                            <span class="tf-legend__dot" style="background: var(--tf-secondary-ink)" aria-hidden="true"></span>
+                            <span class="tf-legend__name">Resuelto</span>
+                            <span class="tf-legend__pct">{% if total %}{% widthratio resolved total 100 %}%{% else %}—{% endif %}</span>
+                            <span class="tf-legend__count">({{ resolved }} ticket{{ resolved|pluralize }})</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </section>
     </div>
-</div>
 
-<div class="row g-3 mb-4">
-    <div class="col-md-6">
-        <div class="card"><div class="card-body">
-            <h2 class="h6">Tickets por estado</h2>
-            <canvas id="statusChart" height="200"></canvas>
-        </div></div>
-    </div>
-    <div class="col-md-6">
-        <div class="card"><div class="card-body">
-            <h2 class="h6">Tickets por área</h2>
-            <canvas id="areaChart" height="200"></canvas>
-        </div></div>
+    {# --- Volume by area (horizontal bars) --- #}
+    <div class="col-12 col-lg-6">
+        <section class="tf-card h-100" aria-labelledby="tf-area-title">
+            <div class="tf-card__header">
+                <div>
+                    <h2 class="tf-card__title" id="tf-area-title">Tickets por área</h2>
+                    <p class="tf-card__subtitle">Volumen de solicitudes recibidas por cada área.</p>
+                </div>
+                <span class="tf-icon text-secondary" aria-hidden="true">bar_chart</span>
+            </div>
+            <div class="tf-card__body" id="areaChart">
+                {% if by_area %}
+                <ul class="tf-bars">
+                    {% for row in by_area %}
+                    <li>
+                        <div class="tf-bar__head">
+                            <span class="tf-bar__label"><span class="tf-bar__swatch" aria-hidden="true"></span><span>{{ row.category__area__name }}</span></span>
+                            <span class="tf-bar__value"><span>{{ row.count }}</span> ticket{{ row.count|pluralize }} <small>({% widthratio row.count total 100 %}%)</small></span>
+                        </div>
+                        <div class="tf-bar__track" aria-hidden="true"><div class="tf-bar__fill" style="width: {% widthratio row.count total 100 %}%"></div></div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="tf-empty py-4">
+                    <span class="tf-empty__icon"><span class="tf-icon" aria-hidden="true">bar_chart</span></span>
+                    <p>No hay tickets en el período seleccionado.</p>
+                </div>
+                {% endif %}
+            </div>
+        </section>
     </div>
 </div>
 
 {% if show_recent_tickets %}
-<div class="card">
-    <div class="card-body">
-        <h2 class="h6">Tickets recientes</h2>
-        {% if recent_tickets %}
-        <table class="table table-sm">
+<section class="tf-card">
+    <div class="tf-card__header">
+        <h2 class="tf-card__title"><span class="tf-icon" aria-hidden="true">schedule</span>Tickets recientes</h2>
+        <a class="tf-row-link" href="{% url 'tickets:list' %}">Ver todos<span class="tf-icon tf-icon--sm" aria-hidden="true">chevron_right</span></a>
+    </div>
+    {% if recent_tickets %}
+    <div class="tf-table-wrap">
+        <table class="tf-table tf-table--stack">
             <thead>
                 <tr>
-                    <th>N&deg;</th>
-                    <th>T&iacute;tulo</th>
-                    <th>&Aacute;rea</th>
-                    <th>Categor&iacute;a</th>
-                    <th>Estado</th>
-                    <th>Creado</th>
+                    <th scope="col">N&deg;</th>
+                    <th scope="col">T&iacute;tulo</th>
+                    <th scope="col">&Aacute;rea</th>
+                    <th scope="col">Categor&iacute;a</th>
+                    <th scope="col">Estado</th>
+                    <th scope="col">Creado</th>
                 </tr>
             </thead>
             <tbody>
                 {% for ticket in recent_tickets %}
                 <tr>
-                    <td><a href="{% url 'tickets:detail' ticket.pk %}">{{ ticket.ticket_number }}</a></td>
-                    <td>{{ ticket.title }}</td>
-                    <td>{{ ticket.category.area.name }}</td>
-                    <td>{{ ticket.category.name }}</td>
-                    <td>{{ ticket.get_status_display }}</td>
-                    <td>{{ ticket.created_at|date:"d/m/Y H:i" }}</td>
+                    <td data-label="N°"><a class="tf-id" href="{% url 'tickets:detail' ticket.pk %}">#{{ ticket.ticket_number }}</a></td>
+                    <td class="tf-cell-primary" data-label="Título"><a class="tf-table__title" href="{% url 'tickets:detail' ticket.pk %}">{{ ticket.title }}</a></td>
+                    <td data-label="Área"><span class="tf-chip">{{ ticket.category.area.name }}</span></td>
+                    <td data-label="Categoría">{{ ticket.category.name }}</td>
+                    <td data-label="Estado">{% include "partials/status_badge.html" with status=ticket.status label=ticket.get_status_display %}</td>
+                    <td data-label="Creado" class="tf-num text-nowrap">{{ ticket.created_at|date:"d/m/Y H:i" }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
-        {% else %}
-        <p class="text-muted mb-0">No hay tickets para mostrar.</p>
-        {% endif %}
     </div>
-</div>
+    {% else %}
+    <div class="tf-empty">
+        <span class="tf-empty__icon"><span class="tf-icon" aria-hidden="true">inbox</span></span>
+        <p class="tf-empty__title">No hay tickets para mostrar.</p>
+    </div>
+    {% endif %}
+</section>
 {% endif %}
-
-{{ status_labels|json_script:"status-labels" }}
-{{ status_values|json_script:"status-values" }}
-{{ area_labels|json_script:"area-labels" }}
-{{ area_values|json_script:"area-values" }}
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-<script>
-(function () {
-    var statusLabels = JSON.parse(document.getElementById("status-labels").textContent);
-    var statusValues = JSON.parse(document.getElementById("status-values").textContent);
-    var areaLabels = JSON.parse(document.getElementById("area-labels").textContent);
-    var areaValues = JSON.parse(document.getElementById("area-values").textContent);
-
-    new Chart(document.getElementById("statusChart"), {
-        type: "doughnut",
-        data: {
-            labels: statusLabels,
-            datasets: [{ data: statusValues, backgroundColor: ["#ffc107", "#0d6efd", "#198754"] }],
-        },
-    });
-
-    new Chart(document.getElementById("areaChart"), {
-        type: "bar",
-        data: {
-            labels: areaLabels,
-            datasets: [{ label: "Tickets", data: areaValues, backgroundColor: "#0d6efd" }],
-        },
-        options: { scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } },
-    });
-})();
-</script>
 {% endblock %}

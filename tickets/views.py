@@ -4,6 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db import transaction
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
@@ -15,6 +16,11 @@ from .forms import TicketAssignForm, TicketCommentForm, TicketCreateForm, Ticket
 from .models import Ticket, TicketComment
 from .permissions import can_manage_ticket_status, get_visible_tickets
 from .services import StatusTransitionError, change_ticket_status, get_next_status
+
+# List-only pseudo-status ("Mis tickets" for area managers): every ticket
+# not yet resolved. Not a stored state, just a filter over Ticket.Status.
+OPEN_STATUS_FILTER = "OPEN"
+OPEN_STATUSES = (Ticket.Status.PENDING, Ticket.Status.IN_PROCESS)
 
 
 @login_required
@@ -44,11 +50,68 @@ def ticket_list(request):
     # which the template reads per ticket. Purely a load-time
     # optimization: get_visible_tickets' filtering/visibility is
     # untouched, this only changes how the same rows are fetched.
-    tickets = get_visible_tickets(request.user).select_related(
+    visible = get_visible_tickets(request.user)
+
+    # Summary counts for the metric cards, computed over everything the
+    # user can see (before the filters below), in one grouped query.
+    status_counts = dict(
+        visible.values_list("status").annotate(count=Count("id")).order_by()
+    )
+    unassigned_pending_count = visible.filter(
+        assigned_to__isnull=True, status=Ticket.Status.PENDING
+    ).count()
+
+    # Optional list filters. They only ever narrow get_visible_tickets'
+    # result, so they can't widen what a role is allowed to see; unknown
+    # values are ignored instead of trusted.
+    tickets = visible
+    status_filter = request.GET.get("status", "")
+    if status_filter in Ticket.Status.values:
+        tickets = tickets.filter(status=status_filter)
+    elif status_filter == OPEN_STATUS_FILTER:
+        tickets = tickets.filter(status__in=OPEN_STATUSES)
+    else:
+        status_filter = ""
+    assignment_filter = request.GET.get("assignment", "")
+    if assignment_filter == "unassigned":
+        tickets = tickets.filter(assigned_to__isnull=True)
+    elif assignment_filter == "assigned":
+        tickets = tickets.filter(assigned_to__isnull=False)
+    else:
+        assignment_filter = ""
+    search = request.GET.get("q", "").strip()
+    if search:
+        tickets = tickets.filter(
+            Q(ticket_number__icontains=search) | Q(title__icontains=search)
+        )
+
+    tickets = tickets.select_related(
         "category", "category__area", "created_by", "assigned_to"
     )
     page_obj = Paginator(tickets, settings.PAGE_SIZE).get_page(request.GET.get("page"))
-    return render(request, "tickets/ticket_list.html", {"page_obj": page_obj})
+    pending = status_counts.get(Ticket.Status.PENDING, 0)
+    in_process = status_counts.get(Ticket.Status.IN_PROCESS, 0)
+    resolved = status_counts.get(Ticket.Status.RESOLVED, 0)
+    return render(
+        request,
+        "tickets/ticket_list.html",
+        {
+            "page_obj": page_obj,
+            "count_total": pending + in_process + resolved,
+            "count_pending": pending,
+            "count_in_process": in_process,
+            "count_resolved": resolved,
+            "count_unassigned_pending": unassigned_pending_count,
+            # "Mis tickets" card: same statuses the OPEN filter applies.
+            "count_open": pending + in_process,
+            "open_status_filter": OPEN_STATUS_FILTER,
+            "status_filter": status_filter,
+            "assignment_filter": assignment_filter,
+            "search": search,
+            "status_choices": Ticket.Status.choices,
+            "filters_active": bool(status_filter or assignment_filter or search),
+        },
+    )
 
 
 @login_required
@@ -57,11 +120,40 @@ def ticket_detail(request, pk):
     can_assign = can_manage_ticket_assignment(request.user, ticket)
     can_manage_status = can_manage_ticket_status(request.user, ticket)
     next_status = get_next_status(ticket.status)
+
+    # Presentation of the linear PENDING -> IN_PROCESS -> RESOLVED flow:
+    # each step is matched with the TicketHistory entry that reached it
+    # (if any). Read-only; transitions are still only possible through
+    # ticket_change_status / change_ticket_status.
+    history = list(ticket.history.select_related("changed_by"))
+    reached = {}
+    for entry in history:
+        reached.setdefault(entry.status, entry)
+    statuses = list(Ticket.Status)
+    current_index = statuses.index(ticket.status)
+    status_steps = [
+        {
+            "number": index + 1,
+            "label": status.label,
+            "entry": reached.get(status),
+            "state": (
+                "done"
+                if index < current_index
+                else "current" if index == current_index else "upcoming"
+            ),
+            "is_final": index == len(statuses) - 1,
+        }
+        for index, status in enumerate(statuses)
+    ]
     return render(
         request,
         "tickets/ticket_detail.html",
         {
             "ticket": ticket,
+            "history": history,
+            "status_steps": status_steps,
+            "current_step": current_index + 1,
+            "total_steps": len(statuses),
             "can_assign": can_assign,
             "can_change_status": can_manage_status and next_status is not None,
             "next_status": next_status,

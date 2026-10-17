@@ -3,40 +3,52 @@
 {% block title %}Áreas - Administración{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h3 mb-0">Áreas</h1>
-    <a class="btn btn-primary btn-sm" href="{% url 'administration:area_create' %}">Nueva área</a>
-</div>
+{% include "partials/admin_header.html" with title="Áreas" crumb="Áreas" lead="Unidades organizacionales que reciben tickets a través de sus categorías." %}
+{% include "partials/admin_tabs.html" %}
 
-{% if page_obj %}
-<table class="table table-sm">
-    <thead>
-        <tr>
-            <th>Nombre</th>
-            <th>Activa</th>
-            <th>Categorías</th>
-            <th></th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for area in page_obj %}
-        <tr>
-            <td>{{ area.name }}</td>
-            <td>{% if area.is_active %}Sí{% else %}No{% endif %}</td>
-            <td>{{ area.categories.count }}</td>
-            <td class="text-end">
-                <a class="btn btn-outline-secondary btn-sm" href="{% url 'administration:area_edit' area.pk %}">Editar</a>
-                <form method="post" action="{% url 'administration:area_delete' area.pk %}" class="d-inline">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-outline-danger btn-sm">Eliminar</button>
-                </form>
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-{% include "partials/pagination.html" %}
-{% else %}
-<p class="text-muted">No hay áreas registradas.</p>
-{% endif %}
+<section class="tf-card">
+    <div class="tf-card__header">
+        <h2 class="tf-card__title">Áreas registradas <span class="tf-chip tf-chip--count">{{ page_obj.paginator.count }}</span></h2>
+        <a class="btn btn-primary btn-sm" href="{% url 'administration:area_create' %}"><span class="tf-icon tf-icon--sm" aria-hidden="true">add</span>Nueva área</a>
+    </div>
+    {% if page_obj %}
+    <div class="tf-table-wrap">
+        <table class="tf-table tf-table--stack">
+            <thead>
+                <tr>
+                    <th scope="col">Nombre</th>
+                    <th scope="col">Estado</th>
+                    <th scope="col">Categorías</th>
+                    <th scope="col" class="text-end">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for area in page_obj %}
+                <tr class="{% if not area.is_active %}is-muted{% endif %}">
+                    <td class="tf-cell-primary" data-label="Nombre">
+                        <span class="tf-table__title">{{ area.name }}</span>
+                        {% if area.description %}<span class="tf-table__sub tf-clamp-2">{{ area.description }}</span>{% endif %}
+                    </td>
+                    <td data-label="Estado">{% if area.is_active %}<span class="tf-status tf-status--active">Activa</span>{% else %}<span class="tf-status tf-status--neutral">Inactiva</span>{% endif %}</td>
+                    <td data-label="Categorías" class="tf-num">{{ area.category_count }}</td>
+                    <td data-label="" class="tf-table__actions">
+                        <a class="btn btn-ghost btn-sm" href="{% url 'administration:area_edit' area.pk %}"><span class="tf-icon tf-icon--sm" aria-hidden="true">edit</span>Editar<span class="visually-hidden"> {{ area.name }}</span></a>
+                        <form method="post" action="{% url 'administration:area_delete' area.pk %}" data-confirm="¿Eliminar el área «{{ area.name }}»? No se podrá eliminar si tiene categorías asociadas.">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-ghost-danger btn-sm"><span class="tf-icon tf-icon--sm" aria-hidden="true">delete</span>Eliminar<span class="visually-hidden"> {{ area.name }}</span></button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="tf-card__footer">{% include "partials/pagination.html" %}</div>
+    {% else %}
+    <div class="tf-empty">
+        <span class="tf-empty__icon"><span class="tf-icon" aria-hidden="true">domain_disabled</span></span>
+        <p class="tf-empty__title">No hay áreas registradas.</p>
+    </div>
+    {% endif %}
+</section>
 {% endblock %}

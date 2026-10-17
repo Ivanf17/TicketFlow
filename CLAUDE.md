@@ -12,7 +12,7 @@ involucradas y que se generen reportes básicos de seguimiento. Es un
 proyecto académico pensado para desarrollarse en 13 semanas.
 
 **Estado: proyecto cerrado.** Los 11 bloques de trabajo planificados
-están implementados, probados (264 tests) y documentados. Este archivo
+están implementados, probados (300 tests) y documentados. Este archivo
 describe el estado final del sistema, no un estado intermedio. El
 detalle completo de arquitectura, modelo de datos y decisiones técnicas
 vive en `docs/documentacion-tecnica.md`; las limitaciones conocidas, en
@@ -30,9 +30,17 @@ pero se despliega y ejecuta como una sola aplicación.
 - **Backend:** Python + Django (última versión 5.x LTS-compatible).
 - **Base de datos:** PostgreSQL. No se usa SQLite en ningún entorno,
   ni siquiera en desarrollo.
-- **Frontend:** Django Templates + Bootstrap 5 (vía CDN) + JavaScript
+- **Frontend:** Django Templates + Bootstrap 5.3.3 (vía CDN) + JavaScript
   básico solo cuando sea estrictamente necesario. No se introduce React
-  ni ningún framework SPA.
+  ni ningún framework SPA. El sistema visual sigue los diseños de Google
+  Stitch (guía de diseño en `docs/diseno-referencia.md`): tokens y
+  componentes `tf-*` en `static/css/ticketflow.css` (sobre las variables
+  de Bootstrap, sin Tailwind), plantilla base única con menú lateral por
+  rol (`templates/base.html` + `templates/partials/`) y filtros de
+  presentación en `ticketflow/templatetags/ui.py` (`{% load ui %}`).
+  Inter y Material Symbols se cargan desde Google Fonts (subconjunto de
+  iconos listado en `base.html`). El dashboard dibuja sus gráficos con
+  CSS en el servidor, sin librerías de gráficos.
 - **Autenticación:** sesiones nativas de Django
   (`django.contrib.auth` + `django.contrib.sessions`). No se usa
   JWT ni autenticación por token salvo que se decida explícitamente
@@ -150,7 +158,7 @@ python manage.py test
 ```
 
 Cada módulo mantiene sus propias pruebas en `<app>/tests.py`. El
-proyecto tiene 264 tests automatizados: modelos, permisos (positivos y
+proyecto tiene 300 tests automatizados: modelos, permisos (positivos y
 negativos, por rol), la máquina de estados, Round Robin, notificaciones,
 paginación, consultas N+1 (`assertNumQueries`) y un test de aceptación
 end-to-end que recorre el ciclo de vida completo de un ticket a través

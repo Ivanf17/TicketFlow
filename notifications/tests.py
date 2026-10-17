@@ -330,3 +330,77 @@ class NotificationListQueryCountTests(TestCase):
         self._create_notifications(9)  # 10 notifications total
         with self.assertNumQueries(baseline):
             self.client.get(reverse("notifications:list"))
+
+
+class NotificationCenterRedesignTests(TestCase):
+    """Redesign: inbox tabs (unread / per type) and the same-site
+    ``next`` redirect used by the top-bar dropdown."""
+
+    def setUp(self):
+        self.area = Area.objects.create(name="TI")
+        self.category = Category.objects.create(name="Hardware", area=self.area)
+        self.employee = User.objects.create_user(
+            username="empleado", password="pass12345",
+            role=User.Role.EMPLOYEE, area=self.area,
+        )
+        self.manager = User.objects.create_user(
+            username="jefe_ti", password="pass12345",
+            role=User.Role.AREA_MANAGER, area=self.area,
+        )
+        self.ticket = Ticket.objects.create_ticket(
+            title="Impresora rota", description="desc",
+            category=self.category, created_by=self.employee,
+        )
+        Type = Notification.NotificationType
+        self.assigned = Notification.objects.create(
+            recipient=self.manager, ticket=self.ticket,
+            notification_type=Type.TICKET_ASSIGNED, title="Asignado", message="m",
+        )
+        self.comment = Notification.objects.create(
+            recipient=self.manager, ticket=self.ticket,
+            notification_type=Type.TICKET_COMMENT_ADDED, title="Comentario",
+            message="m", is_read=True,
+        )
+        Notification.objects.create(
+            recipient=self.employee, ticket=self.ticket,
+            notification_type=Type.TICKET_ASSIGNED, title="Ajena", message="m",
+        )
+        self.client.login(username="jefe_ti", password="pass12345")
+
+    def _pks(self, response):
+        return {n.pk for n in response.context["page_obj"]}
+
+    def test_unread_filter(self):
+        response = self.client.get(reverse("notifications:list"), {"filter": "unread"})
+        self.assertEqual(self._pks(response), {self.assigned.pk})
+
+    def test_type_filter(self):
+        response = self.client.get(
+            reverse("notifications:list"), {"filter": "TICKET_COMMENT_ADDED"}
+        )
+        self.assertEqual(self._pks(response), {self.comment.pk})
+
+    def test_unknown_filter_shows_whole_own_inbox(self):
+        response = self.client.get(reverse("notifications:list"), {"filter": "nope"})
+        self.assertEqual(self._pks(response), {self.assigned.pk, self.comment.pk})
+        self.assertEqual(response.context["total_count"], 2)
+
+    def test_mark_read_redirects_to_same_site_next(self):
+        next_url = reverse("tickets:detail", args=[self.ticket.pk])
+        response = self.client.post(
+            reverse("notifications:mark_read", args=[self.assigned.pk]),
+            {"next": next_url},
+        )
+        self.assertRedirects(response, next_url, fetch_redirect_response=False)
+
+    def test_mark_all_read_ignores_offsite_next(self):
+        response = self.client.post(
+            reverse("notifications:mark_all_read"),
+            {"next": "https://evil.example.com/"},
+        )
+        self.assertRedirects(response, reverse("notifications:list"))
+
+    def test_dropdown_lists_only_own_notifications(self):
+        response = self.client.get(reverse("home"))
+        titles = {n.title for n in response.context["recent_notifications"]}
+        self.assertEqual(titles, {"Asignado", "Comentario"})

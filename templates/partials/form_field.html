@@ -1,0 +1,21 @@
+{% load ui %}
+{# One form field with label, design-system widget, help text and server-side errors. #}
+{% if field.is_hidden %}{{ field }}{% elif field|is_checkbox %}
+<div class="tf-switch-row mb-3">
+    <div>
+        <label class="fw-semibold d-block" for="{{ field.id_for_label }}">{{ field.label|es_label }}</label>
+        {% if field.help_text %}<div class="form-text mt-0" id="{{ field.auto_id }}_help">{{ field.help_text|safe }}</div>{% endif %}
+        {% if field.errors %}<div class="tf-field-error" id="{{ field.auto_id }}_errors">{% for error in field.errors %}{{ error }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</div>{% endif %}
+    </div>
+    <div class="form-check form-switch">
+        {{ field|ui_field }}
+    </div>
+</div>
+{% else %}
+<div class="mb-3">
+    <label class="form-label" for="{{ field.id_for_label }}">{{ field.label|es_label }}{% if field.field.required %}<span class="tf-required" aria-hidden="true">*</span>{% endif %}</label>
+    {{ field|ui_field }}
+    {% if field.errors %}<div class="tf-field-error" id="{{ field.auto_id }}_errors">{% for error in field.errors %}{{ error }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</div>{% endif %}
+    {% if field.help_text %}<div class="form-text" id="{{ field.auto_id }}_help">{{ field.help_text|safe }}</div>{% endif %}
+</div>
+{% endif %}

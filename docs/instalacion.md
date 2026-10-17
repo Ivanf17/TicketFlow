@@ -152,7 +152,7 @@ Checklist rápido:
 - [ ] `python manage.py makemigrations --check --dry-run` responde
       "No changes detected" (si detecta cambios, algo en el modelo no
       coincide con las migraciones aplicadas).
-- [ ] `python manage.py test` corre y termina en `OK` (264 tests).
+- [ ] `python manage.py test` corre y termina en `OK` (300 tests).
 - [ ] `http://127.0.0.1:8000/` carga la página de inicio.
 - [ ] Se puede iniciar sesión con el superusuario del paso 8.
 - [ ] `http://127.0.0.1:8000/accounts/login/` muestra el formulario de
@@ -185,10 +185,13 @@ Faltan migraciones por aplicar: correr `python manage.py migrate` de
 nuevo. Si el error persiste, confirmar que se está apuntando a la base
 de datos correcta (`DB_NAME` en `.env`).
 
-**El servidor arranca pero no se ven estilos (Bootstrap)**
-Bootstrap se carga vía CDN (`templates/base.html`); si no hay conexión
-a internet en el entorno donde corre, los estilos no se aplican (el
-sitio sigue siendo funcional, solo sin estilos). No requiere
+**El servidor arranca pero no se ven estilos (Bootstrap) o los iconos aparecen como texto**
+Bootstrap se carga vía CDN y la tipografía Inter y los iconos Material
+Symbols desde Google Fonts (`templates/base.html`); si no hay conexión
+a internet en el entorno donde corre, los estilos no se aplican y los
+iconos se ven como su nombre en texto (por ejemplo `inbox`). El sitio
+sigue siendo funcional. Los estilos propios
+(`static/css/ticketflow.css`) se sirven localmente. No requiere
 `collectstatic` para desarrollo local.
 
 **Quiero empezar de cero (borrar todos los datos)**

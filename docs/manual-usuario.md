@@ -14,9 +14,13 @@ recibir instrucciones para elegir una nueva. Si no te llega nada,
 puede ser que tu cuenta no tenga un correo cargado — pedile a un
 Administrador que te lo agregue.
 
-Una vez adentro, en la parte de arriba de cualquier pantalla vas a ver
-un menú con las opciones que te correspondan según tu rol, tu nombre de
-usuario, y un botón "Cerrar sesión" para salir.
+Una vez adentro, a la izquierda de cualquier pantalla vas a ver un menú
+lateral con las opciones que te correspondan según tu rol (en el
+celular el menú se abre con el botón ☰ de arriba a la izquierda), y un
+botón "Cerrar sesión" al pie. Arriba a la derecha están la campana de
+notificaciones (muestra las últimas y cuántas tenés sin leer) y tu
+nombre, que abre el menú de cuenta. El buscador de la barra superior
+busca por número o título entre los tickets que podés ver.
 
 ---
 
@@ -27,8 +31,9 @@ solicitudes, y hacer seguimiento de los que ya reportaste.
 
 ### Crear una solicitud (ticket)
 
-1. En el menú de arriba, hacé clic en "Tickets".
-2. Hacé clic en el botón "Nuevo ticket".
+1. Hacé clic en el botón "Nuevo ticket" (arriba del menú lateral, o en
+   "Mis solicitudes").
+2. Se abre el formulario "Reportar un ticket".
 3. Completá:
    - **Título:** un resumen corto del problema (ej. "La impresora del
      piso 2 no enciende").
@@ -46,10 +51,12 @@ correspondiente — no necesitás hacer nada más en este paso.
 
 ### Consultar el estado de tus solicitudes
 
-1. Hacé clic en "Tickets" en el menú.
+1. Hacé clic en "Mis solicitudes" en el menú.
 2. Vas a ver la lista de todas las solicitudes que **vos** creaste, con
-   su número, título, categoría, área, estado actual, quién la creó,
-   quién la está atendiendo y cuándo se creó.
+   su número, título, categoría, área, fecha de creación y estado
+   actual. Arriba hay tarjetas con el total y cuántas hay en cada
+   estado (hacé clic en una para filtrar la lista), y un buscador por
+   número o título.
 3. Hacé clic en cualquier fila (en el número del ticket) para ver el
    detalle completo.
 
@@ -100,9 +107,12 @@ estado hasta resolverlos.
 
 ### Ver los tickets de tu área
 
-Hacé clic en "Tickets" en el menú. Vas a ver **todos** los tickets de tu
-área (no solo los que te asignaron a vos), con su estado y quién los
-está atendiendo actualmente.
+Hacé clic en "Tickets de mi área" en el menú. Vas a ver **todos** los
+tickets de tu área (no solo los que te asignaron a vos), con su estado,
+su antigüedad y quién los está atendiendo actualmente. Podés filtrar por
+estado (incluida la opción "Sin resolver") y buscar por número o título;
+la opción "Mis tickets" del menú (y la tarjeta del mismo nombre) lleva
+directo a los tickets de tu área que siguen pendientes o en proceso.
 
 ### Asignarte o reasignar un ticket
 
@@ -141,7 +151,7 @@ creó el ticket.
 
 ### Consultar tu dashboard
 
-Hacé clic en "Dashboard" en el menú. Vas a ver, acotado siempre a tu
+Hacé clic en "Dashboard del área" en el menú. Vas a ver, acotado siempre a tu
 propia área:
 
 - Cuántos tickets hay en total, y cuántos en cada estado.
@@ -162,9 +172,10 @@ usuarios tienen acceso.
 
 ### Entrar a Administración
 
-Hacé clic en "Administración" en el menú (esta opción solo la ven los
-administradores). Ahí vas a encontrar tres secciones: Áreas,
-Categorías y Usuarios.
+Hacé clic en "Panel admin" en el menú (esta opción solo la ven los
+administradores). Ahí vas a ver un resumen con los totales y tres
+secciones: Usuarios, Áreas y Categorías (también accesibles desde el
+menú lateral y desde las pestañas de la parte superior).
 
 ### Administrar Áreas
 
@@ -222,7 +233,7 @@ particular, solo números agregados de toda la organización.
 
 ### Consultar el dashboard
 
-Hacé clic en "Dashboard" en el menú. Ahí vas a ver, para **toda la
+Hacé clic en "Dashboard ejecutivo" en el menú. Ahí vas a ver, para **toda la
 organización** (todas las áreas juntas, o filtrado por una en
 particular si elegís una del selector):
 

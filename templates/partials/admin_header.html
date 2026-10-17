@@ -1,0 +1,15 @@
+{# Shared page header for administration pages. Context: title, lead (optional), crumb (optional). #}
+<div class="tf-page-header mb-3">
+    <div class="tf-page-header__text">
+        <nav aria-label="Ruta de navegación">
+            <ol class="breadcrumb tf-breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'home' %}">Inicio</a></li>
+                {% if crumb %}<li class="breadcrumb-item"><a href="{% url 'administration:home' %}">Administración</a></li>
+                <li class="breadcrumb-item active" aria-current="page">{{ crumb }}</li>
+                {% else %}<li class="breadcrumb-item active" aria-current="page">Administración</li>{% endif %}
+            </ol>
+        </nav>
+        <h1 class="tf-h-xl">{{ title }}</h1>
+        {% if lead %}<p class="tf-page-header__lead">{{ lead }}</p>{% endif %}
+    </div>
+</div>

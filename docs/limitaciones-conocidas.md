@@ -136,30 +136,24 @@ mantener ese bloque acotado a pruebas y evitar scope creep contra la
 prioridad de Tiempo. Queda como mejora candidata para una futura
 iteración fuera de este proyecto académico.
 
-### 5.3.2 — `ticket_list` no tiene filtros ni búsqueda
+### 5.3.2 — Filtros y búsqueda en `ticket_list` (resuelta)
 
-**Qué es:** la lista de tickets (`/tickets/`) solo pagina; no permite
-filtrar por estado, por área (para admin) ni buscar por texto/número de
-ticket, a diferencia del dashboard de `reports`, que sí filtra por
-fecha y área.
+**Estado:** resuelta en el rediseño de la interfaz. La lista de tickets
+(`/tickets/`) ahora filtra por estado (`?status=`, incluido `OPEN` =
+pendientes y en proceso, usado por "Mis tickets" del Area Manager),
+por asignación (`?assignment=`, ofrecido en pantalla solo al Admin) y
+busca por número o título (`?q=`). Los filtros se validan server-side,
+siempre parten de `get_visible_tickets` (nunca amplían la visibilidad
+del rol), ignoran valores desconocidos y se conservan al paginar.
+Tests: `TicketListFilterTests`, `TicketListMyTicketsTests`.
 
-**Origen:** señalado en el precheck del Bloque 10 como posible mejora,
-junto con la corrección del N+1 (que sí se implementó) y la protección
-del último Admin (que también se implementó).
+**Lo que sigue sin existir:** un filtro por área (`?area=`) en la lista
+del Admin. El Admin puede acotar por área desde el dashboard de
+`reports`, pero no desde `/tickets/`.
 
-**Impacto:** con pocos tickets no se nota; con un volumen alto, ubicar
-un ticket puntual en la lista depende de recorrer páginas de a 20
-(`settings.PAGE_SIZE`) en vez de filtrar directamente.
-
-**Solución posible:** agregar parámetros de querystring (`?status=`,
-`?area=` para admin) al `ticket_list`, validados server-side y
-combinados con `?page=`, siguiendo el mismo patrón ya usado en
-`reports.views.dashboard` para sus filtros.
-
-**Por qué no se implementó:** explícitamente fuera del alcance
-aprobado para el Bloque 10 (que se acotó a pruebas y a las dos
-correcciones de robustez ya mencionadas), para no introducir
-funcionalidad nueva no autorizada contra la prioridad de Tiempo.
+**Origen:** señalado en el precheck del Bloque 10 como posible mejora;
+quedó fuera de ese bloque y se implementó después, junto con el
+rediseño.
 
 ### 5.3.3 — Dos usuarios con el mismo email reciben ambos el correo de recuperación
 

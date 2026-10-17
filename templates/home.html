@@ -1,14 +1,103 @@
 {% extends "base.html" %}
+{% load ui %}
 
 {% block title %}Inicio - TicketFlow{% endblock %}
 
 {% block content %}
-<div class="p-5 bg-body-tertiary rounded-3">
-    <h1 class="display-6">TicketFlow</h1>
-    <p class="lead">Sistema de gestión de tickets internos.</p>
-    <p>Django está funcionando correctamente sobre PostgreSQL.</p>
-    {% if not user.is_authenticated %}
-        <a class="btn btn-primary" href="{% url 'users:login' %}">Iniciar sesión</a>
-    {% endif %}
+{% if user.is_authenticated %}
+<div class="tf-page-header">
+    <div class="tf-page-header__text">
+        <nav aria-label="Ruta de navegación"><ol class="breadcrumb tf-breadcrumb"><li class="breadcrumb-item active" aria-current="page">Inicio</li></ol></nav>
+        <h1 class="tf-h-xl">Hola, {{ user|display_name }}</h1>
+        <p class="tf-page-header__lead">
+            Sesión iniciada como <strong>{{ user.role|role_label }}</strong>{% if user.area %} del área <strong>{{ user.area.name }}</strong>{% endif %}.
+            {% if unread_notifications_count %}Tienes {{ unread_notifications_count }} notificación{{ unread_notifications_count|pluralize:"es" }} sin leer.{% endif %}
+        </p>
+    </div>
 </div>
+
+<div class="row tf-gap-grid">
+    {% if user.role == user.Role.EMPLOYEE %}
+    <div class="col-12 col-md-6 col-xl-4">
+        <a class="tf-card h-100" href="{% url 'tickets:create' %}"><div class="tf-card__body d-flex gap-3">
+            <span class="tf-icon-tile"><span class="tf-icon" aria-hidden="true">post_add</span></span>
+            <div><h2 class="tf-h-sm mb-1">Crear solicitud</h2><p class="tf-muted mb-0">Reporta una incidencia o solicitud. Se asigna automáticamente al área responsable.</p></div>
+        </div></a>
+    </div>
+    <div class="col-12 col-md-6 col-xl-4">
+        <a class="tf-card h-100" href="{% url 'tickets:list' %}"><div class="tf-card__body d-flex gap-3">
+            <span class="tf-icon-tile tf-icon-tile--teal"><span class="tf-icon" aria-hidden="true">inbox</span></span>
+            <div><h2 class="tf-h-sm mb-1">Mis solicitudes</h2><p class="tf-muted mb-0">Consulta el estado y el historial de tus tickets.</p></div>
+        </div></a>
+    </div>
+    {% elif user.role == user.Role.AREA_MANAGER %}
+    <div class="col-12 col-md-6 col-xl-4">
+        <a class="tf-card h-100" href="{% url 'tickets:list' %}"><div class="tf-card__body d-flex gap-3">
+            <span class="tf-icon-tile"><span class="tf-icon" aria-hidden="true">engineering</span></span>
+            <div><h2 class="tf-h-sm mb-1">Tickets de mi área</h2><p class="tf-muted mb-0">Gestiona, asigna y avanza los tickets de {{ user.area.name }}.</p></div>
+        </div></a>
+    </div>
+    <div class="col-12 col-md-6 col-xl-4">
+        <a class="tf-card h-100" href="{% url 'tickets:list' %}?status=OPEN"><div class="tf-card__body d-flex gap-3">
+            <span class="tf-icon-tile tf-icon-tile--amber"><span class="tf-icon" aria-hidden="true">assignment_ind</span></span>
+            <div><h2 class="tf-h-sm mb-1">Mis tickets</h2><p class="tf-muted mb-0">Tickets de tu área pendientes y en proceso.</p></div>
+        </div></a>
+    </div>
+    <div class="col-12 col-md-6 col-xl-4">
+        <a class="tf-card h-100" href="{% url 'reports:dashboard' %}"><div class="tf-card__body d-flex gap-3">
+            <span class="tf-icon-tile tf-icon-tile--teal"><span class="tf-icon" aria-hidden="true">monitoring</span></span>
+            <div><h2 class="tf-h-sm mb-1">Dashboard del área</h2><p class="tf-muted mb-0">Métricas de estado y tiempos de resolución.</p></div>
+        </div></a>
+    </div>
+    {% elif user.role == user.Role.ADMIN %}
+    <div class="col-12 col-md-6 col-xl-4">
+        <a class="tf-card h-100" href="{% url 'administration:home' %}"><div class="tf-card__body d-flex gap-3">
+            <span class="tf-icon-tile"><span class="tf-icon" aria-hidden="true">admin_panel_settings</span></span>
+            <div><h2 class="tf-h-sm mb-1">Panel de administración</h2><p class="tf-muted mb-0">Usuarios, áreas y categorías del sistema.</p></div>
+        </div></a>
+    </div>
+    <div class="col-12 col-md-6 col-xl-4">
+        <a class="tf-card h-100" href="{% url 'tickets:list' %}"><div class="tf-card__body d-flex gap-3">
+            <span class="tf-icon-tile tf-icon-tile--teal"><span class="tf-icon" aria-hidden="true">confirmation_number</span></span>
+            <div><h2 class="tf-h-sm mb-1">Todos los tickets</h2><p class="tf-muted mb-0">Vista global de las solicitudes de todas las áreas.</p></div>
+        </div></a>
+    </div>
+    <div class="col-12 col-md-6 col-xl-4">
+        <a class="tf-card h-100" href="{% url 'reports:dashboard' %}"><div class="tf-card__body d-flex gap-3">
+            <span class="tf-icon-tile tf-icon-tile--blue"><span class="tf-icon" aria-hidden="true">monitoring</span></span>
+            <div><h2 class="tf-h-sm mb-1">Dashboard</h2><p class="tf-muted mb-0">Métricas globales o filtradas por área y fechas.</p></div>
+        </div></a>
+    </div>
+    {% elif user.role == user.Role.MANAGEMENT %}
+    <div class="col-12 col-md-6 col-xl-4">
+        <a class="tf-card h-100" href="{% url 'reports:dashboard' %}"><div class="tf-card__body d-flex gap-3">
+            <span class="tf-icon-tile"><span class="tf-icon" aria-hidden="true">space_dashboard</span></span>
+            <div><h2 class="tf-h-sm mb-1">Dashboard ejecutivo</h2><p class="tf-muted mb-0">Métricas agregadas de todas las áreas.</p></div>
+        </div></a>
+    </div>
+    {% endif %}
+    <div class="col-12 col-md-6 col-xl-4">
+        <a class="tf-card h-100" href="{% url 'notifications:list' %}"><div class="tf-card__body d-flex gap-3">
+            <span class="tf-icon-tile tf-icon-tile--amber"><span class="tf-icon" aria-hidden="true">notifications</span></span>
+            <div><h2 class="tf-h-sm mb-1">Notificaciones</h2><p class="tf-muted mb-0">{% if unread_notifications_count %}{{ unread_notifications_count }} sin leer.{% else %}Estás al día.{% endif %}</p></div>
+        </div></a>
+    </div>
+</div>
+{% else %}
+<div class="tf-auth-card">
+    <div class="tf-auth-card__head">
+        <div class="tf-auth-logo">
+            <span class="tf-brand__logo"><span class="tf-icon" aria-hidden="true">confirmation_number</span></span>
+            <div>
+                <h1 class="tf-auth-logo__name mb-0">TicketFlow</h1>
+                <div class="tf-muted">Sistema de gestión de tickets internos</div>
+            </div>
+        </div>
+        <p class="tf-text-2 mb-0">Reporta incidencias y solicitudes, sigue su estado y recibe notificaciones cuando avanzan.</p>
+    </div>
+    <div class="tf-auth-card__body">
+        <a class="btn btn-primary btn-lg w-100" href="{% url 'users:login' %}">Iniciar sesión <span class="tf-icon" aria-hidden="true">arrow_forward</span></a>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

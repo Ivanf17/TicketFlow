@@ -1,0 +1,6 @@
+{% if form.non_field_errors %}
+<div class="tf-alert tf-alert--error" role="alert">
+    <span class="tf-icon" aria-hidden="true">error</span>
+    <div class="tf-alert__text">{% for error in form.non_field_errors %}{{ error }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</div>
+</div>
+{% endif %}

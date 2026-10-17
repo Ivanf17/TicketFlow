@@ -61,7 +61,7 @@ por rol y por los filtros de fecha/área de esa request. Evidencia:
 `DashboardResolutionTimeTests`.
 
 **5. El sistema ha sido probado y aprobado por el docente/patrocinador antes de la entrega final.**
-**PENDIENTE.** El sistema está probado internamente (264 tests
+**PENDIENTE.** El sistema está probado internamente (300 tests
 automatizados — modelos, permisos, máquina de estados, Round Robin,
 notificaciones, N+1, un test de aceptación end-to-end — más el
 checklist de pruebas manuales de `docs/pruebas-manuales.md`), pero la
