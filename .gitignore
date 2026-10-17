@@ -11,6 +11,7 @@ ENV/
 
 # Environment variables (never commit real credentials)
 .env
+.env.local
 
 # Django
 *.log
