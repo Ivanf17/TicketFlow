@@ -114,7 +114,10 @@ funcionalidad real y están registradas.
   mecanismos de autenticación alternativos sin decisión explícita.
 - PostgreSQL es la única base de datos soportada, en todos los
   entornos. La configuración de conexión sale siempre de variables de
-  entorno (`DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`).
+  entorno (`DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`,
+  `DB_SSLMODE`). Supabase (PostgreSQL gestionado) es una opción
+  documentada en `docs/instalacion.md`; los tests se corren contra la
+  base local.
 - No se agregan dependencias, frameworks o infraestructuras
   (microservicios, colas, cachés, SPA, etc.) que no sean necesarias
   para el alcance académico del proyecto.

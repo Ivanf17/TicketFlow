@@ -91,6 +91,7 @@ Variables y su significado:
 | `DB_PASSWORD` | Contraseña de ese usuario. | *(la elegida en el paso 5)* |
 | `DB_HOST` | Host del servidor PostgreSQL. | `localhost` |
 | `DB_PORT` | Puerto de PostgreSQL. | `5432` |
+| `DB_SSLMODE` | Modo SSL de la conexión (`sslmode` de PostgreSQL). `prefer` alcanza para PostgreSQL local; `require` para Supabase (ver sección 13). | `prefer` |
 | `EMAIL_BACKEND` | Backend de correo de Django, usado solo para la recuperación de contraseña. | `django.core.mail.backends.console.EmailBackend` (imprime el correo en la terminal en vez de enviarlo — suficiente para desarrollo/demostración) |
 | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS` | Configuración de un servidor SMTP real. Solo hacen falta si se cambia `EMAIL_BACKEND` a uno real (`smtp.EmailBackend`). | vacíos/no aplican con el backend de consola |
 | `DEFAULT_FROM_EMAIL` | Dirección remitente de los correos de recuperación de contraseña. | `no-reply@ticketflow.local` |
@@ -199,3 +200,53 @@ No hay un comando de "reset" en el proyecto (fuera del alcance
 académico). La forma más simple es recrear la base de datos completa:
 `DROP DATABASE ticketflow_db;` seguido de los pasos 5, 7 y 8 de esta
 guía.
+
+## 13. Usar Supabase (opcional)
+
+La instalación principal sigue siendo PostgreSQL local (pasos 2 a 11).
+Supabase es solo una alternativa para tener la base de datos en un
+PostgreSQL gestionado; el código no cambia, solo los valores de `.env`.
+
+1. **Respaldar la configuración local** antes de tocar `.env`:
+
+   ```powershell
+   Copy-Item .env .env.local
+   ```
+
+   `.env.local` está en `.gitignore`, igual que `.env`.
+
+2. **Crear un proyecto** en [supabase.com](https://supabase.com) y
+   anotar la contraseña de la base de datos que se elige al crearlo.
+3. En el proyecto, botón **Connect** → pestaña **Direct** → método
+   **Session pooler**. Se usa el pooler porque la conexión directa solo
+   acepta IPv6, y el pooler funciona por IPv4.
+4. **Copiar los datos de conexión al `.env`** (los valores de abajo son
+   ejemplos genéricos; usar los que muestra tu proyecto):
+
+   ```
+   DB_NAME=postgres
+   DB_USER=postgres.<id-de-tu-proyecto>
+   DB_PASSWORD=<la contraseña de la base de datos>
+   DB_HOST=aws-0-<región>.pooler.supabase.com
+   DB_PORT=5432
+   DB_SSLMODE=require
+   ```
+
+5. Aplicar migraciones y crear el primer Admin contra Supabase, igual
+   que en local: `python manage.py migrate` y
+   `python manage.py createsuperuser` (o `python manage.py seed_demo`
+   para datos de ejemplo).
+
+**Volver a la base local:**
+
+```powershell
+Copy-Item .env.local .env
+```
+
+**Tests:** se corren siempre contra la base local, no contra Supabase.
+Antes de `python manage.py test`, volver a la configuración local con
+el comando anterior.
+
+**Plan gratuito:** Supabase pausa el proyecto después de una semana sin
+uso. Si la conexión empieza a fallar, entrar al panel de Supabase y
+reanudar el proyecto.

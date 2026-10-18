@@ -196,8 +196,31 @@ con su significado está en
 | `DEBUG` | `True` en desarrollo, `False` en producción. |
 | `ALLOWED_HOSTS` | Hosts permitidos, separados por comas. |
 | `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` | Conexión a PostgreSQL. |
+| `DB_SSLMODE` | Modo SSL de la conexión: `prefer` (por defecto) para local, `require` para Supabase. |
 | `EMAIL_BACKEND` y demás `EMAIL_*` | Envío de los correos de recuperación de contraseña (por defecto, backend de consola: los imprime en la terminal en vez de enviarlos). |
 | `DEFAULT_FROM_EMAIL` | Remitente de esos correos. |
+
+## Usar Supabase (opcional)
+
+La instalación principal sigue siendo PostgreSQL local. Si se prefiere
+un PostgreSQL gestionado, el proyecto funciona con Supabase cambiando
+solo `.env`:
+
+1. Respaldar la configuración local: `Copy-Item .env .env.local`
+   (PowerShell). `.env.local` está en `.gitignore`.
+2. Crear un proyecto en Supabase → botón **Connect** → pestaña
+   **Direct** → método **Session pooler** (funciona por IPv4).
+3. Copiar host, puerto, usuario y base de datos al `.env` (por ejemplo
+   `DB_HOST=aws-0-<región>.pooler.supabase.com`,
+   `DB_USER=postgres.<id-de-tu-proyecto>`, `DB_NAME=postgres`,
+   `DB_PORT=5432`), junto con la contraseña, y poner
+   `DB_SSLMODE=require`.
+4. `python manage.py migrate` y crear el primer Admin como en local.
+
+Para volver a la base local: `Copy-Item .env.local .env`. Los tests se
+corren contra la base local, no contra Supabase. El plan gratuito pausa
+el proyecto tras una semana sin uso. Pasos completos en
+[`docs/instalacion.md`](./docs/instalacion.md#13-usar-supabase-opcional).
 
 ## Cómo crear el primer usuario administrador
 
