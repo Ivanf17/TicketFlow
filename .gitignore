@@ -13,6 +13,9 @@ ENV/
 .env
 .env.local
 
+# Local Google Stitch design export (reference kept in docs/diseno-referencia.md)
+docs/diseño-stitch/
+
 # Django
 *.log
 db.sqlite3
