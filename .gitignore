@@ -12,6 +12,7 @@ ENV/
 # Environment variables (never commit real credentials)
 .env
 .env.local
+.env.supabase
 
 # Local Google Stitch design export (reference kept in docs/diseno-referencia.md)
 docs/diseño-stitch/
