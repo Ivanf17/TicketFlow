@@ -85,7 +85,7 @@ class Ticket(models.Model):
             and self.assigned_to.area_id != self.category.area_id
         ):
             raise ValidationError(
-                {"assigned_to": "The assigned user must belong to the ticket's area."}
+                {"assigned_to": "El responsable debe pertenecer al área del ticket."}
             )
 
     def save(self, *args, **kwargs):

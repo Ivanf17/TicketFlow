@@ -75,7 +75,7 @@ def assign_ticket(ticket, *, assigned_to, changed_by):
     """
     if assigned_to.area_id != ticket.category.area_id:
         raise AssignmentError(
-            "The assigned user must belong to the ticket's area."
+            "El responsable debe pertenecer al área del ticket."
         )
 
     previous = ticket.assigned_to

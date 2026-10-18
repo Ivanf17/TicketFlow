@@ -85,7 +85,7 @@ class User(AbstractUser):
         super().clean()
         if self.role in self.ROLES_REQUIRING_AREA and self.area_id is None:
             raise ValidationError(
-                {"area": "This role requires an area to be set."}
+                {"area": "Este rol requiere tener un área asignada."}
             )
 
     def __str__(self):

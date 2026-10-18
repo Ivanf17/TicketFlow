@@ -205,11 +205,11 @@ def ticket_change_status(request, pk):
                 changed_by=request.user,
             )
         except StatusTransitionError:
-            messages.error(request, "That status change is not allowed.")
+            messages.error(request, "Ese cambio de estado no está permitido.")
         else:
-            messages.success(request, "Ticket status updated.")
+            messages.success(request, "Estado del ticket actualizado.")
     else:
-        messages.error(request, "That status change is not allowed.")
+        messages.error(request, "Ese cambio de estado no está permitido.")
     return redirect("tickets:detail", pk=ticket.pk)
 
 

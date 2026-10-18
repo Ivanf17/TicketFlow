@@ -336,9 +336,8 @@ No es una app de negocio: es el "esqueleto" del proyecto.
 - **`urls.py`:** el índice principal de URLs. Conecta `admin/` (Django
   Admin), `accounts/` (`users.urls`), `tickets/`, `notifications/`,
   `dashboard/` (`reports.urls`), `administration/` y la raíz `""`
-  (`HomeView`). *Nota:* el comentario de arriba del archivo quedó
-  desactualizado: dice que solo están conectadas las piezas básicas,
-  pero en el código ya están incluidas todas las apps.
+  (`HomeView`). `assignment` no tiene `urls.py` propio: su pantalla de
+  reasignación la sirve `tickets` (`tickets:assign`).
 - **`views.py`:** una sola clase, `HomeView` (vista genérica
   `TemplateView`), que muestra `templates/home.html`: la página de
   inicio con accesos por rol o, sin sesión, el botón de login.

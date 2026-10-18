@@ -16,6 +16,12 @@ class AreaForm(forms.ModelForm):
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
         }
+        # Django's default builds this from the model's English names
+        # ("Ya existe Area con este name."); overriding it here avoids a
+        # migration that changing verbose_name would generate.
+        error_messages = {
+            "name": {"unique": "Ya existe un área con este nombre."},
+        }
 
 
 class CategoryForm(forms.ModelForm):
