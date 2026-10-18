@@ -305,6 +305,7 @@ aceptación con su estado real).
 | [`CLAUDE.md`](./CLAUDE.md) | Reglas y restricciones del proyecto (referencia para quien lo siga desarrollando). |
 | [`docs/instalacion.md`](./docs/instalacion.md) | Guía de instalación reproducible, paso a paso, con solución de problemas comunes. |
 | [`docs/documentacion-tecnica.md`](./docs/documentacion-tecnica.md) | Arquitectura, modelo de datos, permisos, flujos principales y decisiones técnicas. |
+| [`docs/guia-del-codigo.md`](./docs/guia-del-codigo.md) | Mapa del código archivo por archivo (backend, frontend, configuración), tecnologías y su porqué, y glosario para la sustentación. |
 | [`docs/limitaciones-conocidas.md`](./docs/limitaciones-conocidas.md) | Limitaciones conocidas, su origen, impacto y por qué no se resolvieron. |
 | [`docs/manual-usuario.md`](./docs/manual-usuario.md) | Manual para empleados de la organización, por rol. |
 | [`docs/casos-de-uso.md`](./docs/casos-de-uso.md) | Alcance formal aprobado vs. funcionalidades adicionales, con cada criterio de aceptación mapeado a su evidencia. |
